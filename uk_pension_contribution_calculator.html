@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Salary Sacrifice — Employer Cost &amp; Savings Calculator (QE vs Full Salary)</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --ink:#1c2230; --muted:#5b6472;
+    --line:#e3e6eb; --accent:#3b5bdb; --accent2:#0f9d6f; --warn:#b5651d;
+    --qe:#0f9d6f; --full:#3b5bdb;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:32px 16px 60px; background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+  }
+  .container{max-width:1000px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;box-shadow:0 1px 2px rgba(20,20,40,0.04)}
+  .card h2{font-size:15px;margin:0 0 14px;color:var(--ink)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:500}
+  input[type=number]{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;color:var(--ink);background:#fbfbfc;
+  }
+  input[type=number]:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+  .checkbox-row{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:13.5px;color:var(--ink)}
+  .checkbox-row input{margin-top:3px}
+  .checkbox-row span.hint{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  details{margin-top:6px}
+  summary{cursor:pointer;font-size:13px;color:var(--accent);font-weight:600;user-select:none}
+  details .grid{margin-top:14px}
+
+  .toggle-wrap{margin-top:16px}
+  .toggle-wrap > label.toggle-title{margin-bottom:8px}
+  .segmented{display:inline-flex;background:#eef0f3;border-radius:9px;padding:3px;gap:2px}
+  .segmented input{position:absolute;opacity:0;pointer-events:none}
+  .segmented label.seg{
+    cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);
+    padding:8px 14px;border-radius:7px;transition:background .15s,color .15s;
+  }
+  .segmented input:checked + label.seg{background:#ffffff;color:var(--accent);box-shadow:0 1px 2px rgba(20,20,40,0.12)}
+  .toggle-hint{font-size:12px;color:var(--muted);margin-top:8px}
+
+  .delta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+  .delta-item{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .delta-item.saving{background:#f2fbf7;border-color:#bfe8d5}
+  .delta-item .dlabel{font-size:12px;color:var(--muted);margin-bottom:6px}
+  .delta-item .dval{font-size:22px;font-weight:800}
+  .delta-item .dval.pos{color:var(--accent2)}
+  .delta-item .dval.neg{color:#c0392b}
+  .delta-item .dsub{font-size:11.5px;color:var(--muted);margin-top:4px}
+
+  .compare-legend{display:flex;gap:18px;margin:0 0 10px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .compare-legend .k{display:inline-flex;align-items:center;gap:6px}
+  .compare-legend .dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .compare-legend .dot.qe{background:var(--qe)}
+  .compare-legend .dot.full{background:var(--full)}
+  .compare-scroll{overflow-x:auto}
+  table.compare{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.compare thead th{
+    text-align:right;padding:10px 12px;font-size:12px;font-weight:700;
+    border-bottom:2px solid var(--line);white-space:nowrap;
+  }
+  table.compare thead th.item{text-align:left}
+  table.compare thead th.qe{color:var(--qe)}
+  table.compare thead th.full{color:var(--full)}
+  table.compare thead th.diff{color:var(--muted)}
+  table.compare thead th.grouphdr{text-align:center;color:var(--ink);font-size:12.5px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+  table.compare .grp-start{border-left:2px solid var(--line)}
+  table.compare tbody td{padding:8px 12px;border-bottom:1px dashed var(--line);font-variant-numeric:tabular-nums;text-align:right}
+  table.compare tbody td.item{text-align:left;color:var(--muted);font-variant-numeric:normal}
+  table.compare tbody td.qe{color:var(--ink);font-weight:600;background:#f6fcf9}
+  table.compare tbody td.full{color:var(--ink);font-weight:600;background:#f6f8fe}
+  table.compare tbody td.diff{color:var(--muted);font-weight:500}
+  table.compare tbody td.diff.pos{color:var(--accent2)}
+  table.compare tbody td.diff.neg{color:#c0392b}
+  table.compare tbody tr.total td{border-top:2px solid var(--line);border-bottom:1px dashed var(--line);font-size:14.5px}
+  table.compare tbody tr.total td.item{font-weight:700;color:var(--ink)}
+  table.compare tbody tr.total td.qe,
+  table.compare tbody tr.total td.full{font-weight:800}
+  table.compare tbody tr.section td{
+    padding:14px 12px 6px;font-size:11px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--muted);background:transparent;text-align:left;
+  }
+  table.compare tbody tr.saving td{background:#f2fbf7}
+  table.compare tbody tr.saving td.item{color:var(--accent2);font-weight:600}
+  table.compare tbody tr.focus td{background:#eaeefe;font-size:16px;padding-top:12px;padding-bottom:12px;border-top:2px solid var(--full);border-bottom:2px solid var(--full)}
+  table.compare tbody tr.focus td.item{font-weight:800;color:var(--ink)}
+  table.compare tbody tr.focus td.qe,
+  table.compare tbody tr.focus td.full{font-weight:800;color:var(--full)}
+
+  .notes{font-size:12px;color:var(--muted);line-height:1.6}
+  .notes ul{margin:6px 0 0;padding-left:18px}
+  .badge{display:inline-block;background:#eef0ff;color:var(--accent);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:8px;vertical-align:middle}
+  .warn{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Salary Sacrifice — Employer Cost &amp; Savings <span class="badge">2026/27 · Monthly</span></h1>
+  <p class="sub">The employee makes a <strong>full salary sacrifice</strong> in every case. This shows what it costs and saves the <strong>employer</strong> depending on whether the employer contributes on the statutory <strong>qualifying-earnings band</strong> or on <strong>full salary</strong>. All figures are per month, rUK (England/Wales/NI) tax and NI.</p>
+
+  <div class="card">
+    <h2>Your details</h2>
+    <div class="grid">
+      <div>
+        <label for="monthlySalary">Gross monthly salary (£)</label>
+        <input type="number" id="monthlySalary" value="3750" step="50" min="0">
+      </div>
+      <div>
+        <label for="bonus">Bonus this month (£)</label>
+        <input type="number" id="bonus" value="0" step="50" min="0">
+      </div>
+      <div>
+        <label for="allowances">Allowances this month (£)</label>
+        <input type="number" id="allowances" value="0" step="50" min="0">
+      </div>
+      <div>
+        <label for="empeeRate">Employee sacrifice rate (%)</label>
+        <input type="number" id="empeeRate" value="5" step="0.5" min="0" max="100">
+      </div>
+      <div>
+        <label for="emprRate">Employer contribution rate (%)</label>
+        <input type="number" id="emprRate" value="3" step="0.5" min="0" max="100">
+      </div>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="reinvestNI">
+      <label style="margin:0" for="reinvestNI">Employer reinvests its NI saving back into the employee's pension
+        <span class="hint">If ticked, the employer NI saved from the sacrifice is added to the pension rather than kept — this removes the employer's cash saving but boosts the pension. Off by default (employer keeps the saving).</span>
+      </label>
+    </div>
+
+    <details>
+      <summary>Advanced: tax &amp; NI settings (2026/27 annual figures — divided by 12 below)</summary>
+      <div class="grid">
+        <div><label for="pa">Personal allowance (£/yr)</label><input type="number" id="pa" value="12570"></div>
+        <div><label for="basicTop">Higher-rate threshold (£/yr)</label><input type="number" id="basicTop" value="50270"></div>
+        <div><label for="addTop">Additional-rate threshold (£/yr)</label><input type="number" id="addTop" value="125140"></div>
+        <div><label for="niPT">Employee NI primary threshold (£/yr)</label><input type="number" id="niPT" value="12570"></div>
+        <div><label for="niUEL">Employee NI upper earnings limit (£/yr)</label><input type="number" id="niUEL" value="50270"></div>
+        <div><label for="niMain">Employee NI main rate (%)</label><input type="number" id="niMain" value="8" step="0.1"></div>
+        <div><label for="niUpper">Employee NI rate above UEL (%)</label><input type="number" id="niUpper" value="2" step="0.1"></div>
+        <div><label for="niST">Employer NI secondary threshold (£/yr)</label><input type="number" id="niST" value="5000"></div>
+        <div><label for="niEmpr">Employer NI rate (%)</label><input type="number" id="niEmpr" value="15" step="0.1"></div>
+        <div><label for="qeLower">Qualifying earnings lower limit (£/yr)</label><input type="number" id="qeLower" value="6240"></div>
+        <div><label for="qeUpper">Qualifying earnings upper limit (£/yr)</label><input type="number" id="qeUpper" value="50270"></div>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Line-by-line comparison (per month)</h2>
+    <div class="compare-legend">
+      <span class="k"><span class="dot qe"></span> Employer contributes on the qualifying-earnings band (statutory minimum)</span>
+      <span class="k"><span class="dot full"></span> Employer contributes on full salary</span>
+    </div>
+    <div class="compare-scroll">
+      <table class="compare">
+        <thead>
+          <tr>
+            <th class="item" rowspan="2">Line item</th>
+            <th class="grouphdr" colspan="2">Gross salary only</th>
+            <th class="grouphdr grp-start" colspan="2">Salary + bonus + allowances</th>
+          </tr>
+          <tr>
+            <th class="qe">Employer on QE</th>
+            <th class="full">Employer on full</th>
+            <th class="qe grp-start">Employer on QE</th>
+            <th class="full">Employer on full</th>
+          </tr>
+        </thead>
+        <tbody id="compareBody"></tbody>
+      </table>
+    </div>
+    <p class="toggle-hint" style="margin-top:12px">The employee makes a full salary sacrifice in every column, so their sacrifice, tax, NI and take-home are unaffected by these choices. The left pair calculates contributions on gross salary only (bonus and allowances paid but not pensionable); the right pair includes the bonus and allowances in the pensionable base. Within each pair, the employer either matches on the qualifying-earnings band or on full pay.</p>
+  </div>
+
+  <div class="card notes">
+    <strong>Assumptions &amp; notes</strong>
+    <ul>
+      <li>All results are per month. Tax and NI thresholds are the official 2026/27 rUK annual figures divided by 12, applied as a steady monthly rate — a simplified, non-cumulative view rather than exact PAYE month-by-month calculation.</li>
+      <li>"Employer NI saved" is measured against a no-sacrifice baseline: the employer NI they would have paid on the full gross pay, minus the employer NI on the reduced (post-sacrifice) pay. Employer pension contributions carry no NI.</li>
+      <li>Qualifying-earnings band per month: lower £520, upper £4,189 (contributions on the slice between). Employer NI secondary threshold £417/month, rate 15%.</li>
+      <li>Personal allowance taper (£1 lost per £2 of monthly-equivalent income above £8,333, fully gone above £10,428) is applied automatically.</li>
+      <li>Excludes student-loan repayments, Scottish tax, benefits-in-kind, apprenticeship levy, and the Employment Allowance (an employer-level relief, not per employee).</li>
+      <li class="warn">Salary sacrifice cannot take contractual pay below National Minimum/Living Wage — check this for lower-paid or part-time staff before offering it.</li>
+      <li>Planning illustration, not tax advice — confirm with a payroll or pensions adviser before acting.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+function fmt(n){
+  const neg = n < 0;
+  n = Math.abs(n);
+  const s = n.toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0});
+  return (neg?'-£':'£') + s;
+}
+
+function incomeTax(taxablePay, pa, basicTop, addTop){
+  let PA = pa;
+  const taperStart = 100000/12;
+  if(taxablePay > taperStart){
+    PA = Math.max(0, pa - (taxablePay-taperStart)/2);
+  }
+  if(taxablePay <= PA) return 0;
+  let tax = 0;
+  const band20Top = Math.min(taxablePay, basicTop);
+  const at20 = Math.max(0, band20Top - PA);
+  tax += at20*0.20;
+  if(taxablePay > basicTop){
+    const band40Top = Math.min(taxablePay, addTop);
+    const at40 = Math.max(0, band40Top - basicTop);
+    tax += at40*0.40;
+  }
+  if(taxablePay > addTop){
+    tax += (taxablePay - addTop)*0.45;
+  }
+  return tax;
+}
+
+function niEmployee(pay, pt, uel, mainRate, upperRate){
+  if(pay <= pt) return 0;
+  if(pay <= uel) return (pay-pt)*mainRate;
+  return (uel-pt)*mainRate + (pay-uel)*upperRate;
+}
+
+function niEmployer(pay, st, rate){
+  if(pay <= st) return 0;
+  return (pay-st)*rate;
+}
+
+function num(id){ return parseFloat(document.getElementById(id).value) || 0; }
+
+function recalc(){
+  const monthlySalary = num('monthlySalary');
+  const monthlyBonus = num('bonus');
+  const monthlyAllowances = num('allowances');
+  const empeeRate = num('empeeRate')/100;
+  const emprRate = num('emprRate')/100;
+  const reinvestNI = document.getElementById('reinvestNI').checked;
+
+  // Annual thresholds (2026/27) → monthly equivalent
+  const pa = num('pa')/12, basicTop = num('basicTop')/12, addTop = num('addTop')/12;
+  const niPT = num('niPT')/12, niUEL = num('niUEL')/12, niMain = num('niMain')/100, niUpper = num('niUpper')/100;
+  const niST = num('niST')/12, niEmprRate = num('niEmpr')/100;
+  const qeLower = num('qeLower')/12, qeUpper = num('qeUpper')/12;
+
+  const totalEarnings = monthlySalary + monthlyBonus + monthlyAllowances; // gross pay this month
+
+  // Build a full scenario for a given pensionable base (salary-only or salary+bonus).
+  // Returns both employer-contribution options (QE band vs full base).
+  function scenario(basisEarnings){
+    const qeBand = Math.max(0, Math.min(basisEarnings, qeUpper) - qeLower);
+    const employeeSacrifice = empeeRate * basisEarnings;         // employee always full-sacrifices
+    const reducedPay = totalEarnings - employeeSacrifice;
+
+    const emprNI_noSac = niEmployer(totalEarnings, niST, niEmprRate);
+    const emprNI_afterSac = niEmployer(reducedPay, niST, niEmprRate);
+    const emprNI_saving = emprNI_noSac - emprNI_afterSac;
+    const reinvest = reinvestNI ? emprNI_saving : 0;
+
+    const emprContribQE = emprRate * qeBand;
+    const emprContribFull = emprRate * basisEarnings;
+
+    return {
+      basisEarnings, qeBand, employeeSacrifice, reducedPay,
+      emprNI_noSac, emprNI_afterSac, emprNI_saving, reinvest,
+      qe: {
+        contrib: emprContribQE,
+        pension: employeeSacrifice + emprContribQE + reinvest,
+        cost: totalEarnings + emprContribQE + emprNI_afterSac + reinvest,
+      },
+      full: {
+        contrib: emprContribFull,
+        pension: employeeSacrifice + emprContribFull + reinvest,
+        cost: totalEarnings + emprContribFull + emprNI_afterSac + reinvest,
+      },
+    };
+  }
+
+  const S = scenario(monthlySalary);      // gross salary only
+  const T = scenario(totalEarnings);      // salary + bonus
+
+  // ---- Line-by-line table (4 value columns: S.qe, S.full, T.qe, T.full) ----
+  // vals = [salaryOnly-QE, salaryOnly-Full, salaryBonus-QE, salaryBonus-Full]
+  function line(label, vals, opts){
+    opts = opts || {};
+    const cls = ['qe','full','qe grp-start','full'];
+    const cells = vals.map((v,i) =>
+      `<td class="${cls[i]}">${v === null ? '—' : fmt(v)}</td>`
+    ).join('');
+    const trCls = (opts.total ? 'total ' : '') + (opts.saving ? 'saving ' : '') + (opts.focus ? 'focus' : '');
+    return `<tr class="${trCls.trim()}"><td class="item">${label}</td>${cells}</tr>`;
+  }
+  function same(label, v, opts){ return line(label, [v,v,v,v], opts); }
+  function section(title){ return `<tr class="section"><td colspan="5">${title}</td></tr>`; }
+
+  document.getElementById('compareBody').innerHTML =
+    section('Pay context') +
+    same('Total gross pay', totalEarnings) +
+    line('Pensionable base', [monthlySalary, monthlySalary, totalEarnings, totalEarnings]) +
+    line('Qualifying earnings band (£520–£4,189)', [S.qeBand, S.qeBand, T.qeBand, T.qeBand]) +
+
+    section('Employer contribution') +
+    line('Employer contribution', [S.qe.contrib, S.full.contrib, T.qe.contrib, T.full.contrib], {focus:true}) +
+
+    section('Supporting detail') +
+    line('Employee sacrifice → pension', [S.employeeSacrifice, S.employeeSacrifice, T.employeeSacrifice, T.employeeSacrifice]) +
+    line('Employer NI saving reinvested', [S.reinvest, S.reinvest, T.reinvest, T.reinvest]) +
+    line('Total into pension', [S.qe.pension, S.full.pension, T.qe.pension, T.full.pension], {total:true}) +
+    line('Employer NI saving from sacrifice', [S.emprNI_saving, S.emprNI_saving, T.emprNI_saving, T.emprNI_saving], {saving:true});
+}
+
+document.querySelectorAll('input').forEach(el => {
+  el.addEventListener('input', recalc);
+  el.addEventListener('change', recalc);
+});
+recalc();
+</script>
+</body>
+</html>
