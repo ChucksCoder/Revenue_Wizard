@@ -49,7 +49,7 @@ export default function Sidebar({ user }: { user: SessionUser }) {
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 flex w-60 flex-col border-r border-slate-800/80 bg-slate-950/95">
+    <aside className="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-slate-800/80 bg-slate-950">
       <div className="flex items-center gap-2.5 px-5 py-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30">
           <Sparkles size={18} className="text-white" />

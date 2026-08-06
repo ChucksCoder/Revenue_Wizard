@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <MonthProvider>
       <div className="flex min-h-screen">
         <Sidebar user={user} />
-        <main className="ml-60 flex-1 p-8">{children}</main>
+        <main className="ml-60 min-w-0 flex-1 p-8">{children}</main>
       </div>
     </MonthProvider>
   );
