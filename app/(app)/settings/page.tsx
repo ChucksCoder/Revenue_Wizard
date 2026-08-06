@@ -7,6 +7,8 @@ import { Plus, Trash2, RefreshCw } from "lucide-react";
 
 function CampfireSync() {
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [slackConfigured, setSlackConfigured] = useState(false);
+  const [cronConfigured, setCronConfigured] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
@@ -14,7 +16,13 @@ function CampfireSync() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api("/api/sync/campfire").then((d) => setConfigured(d.configured)).catch(() => setConfigured(false));
+    api("/api/sync/campfire")
+      .then((d) => {
+        setConfigured(d.configured);
+        setSlackConfigured(Boolean(d.slackConfigured));
+        setCronConfigured(Boolean(d.cronConfigured));
+      })
+      .catch(() => setConfigured(false));
   }, []);
 
   async function sync() {
@@ -63,6 +71,14 @@ function CampfireSync() {
         2026-08-05 grabs deals and billings from those days. Leave blank for everything.
         New contracts also pull their full future invoice schedule automatically.
       </p>
+      <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+        <span className={`rounded-full px-2 py-0.5 ${cronConfigured ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-500"}`}>
+          Daily 9am MT auto-sync: {cronConfigured ? "on" : "off - set CRON_SECRET"}
+        </span>
+        <span className={`rounded-full px-2 py-0.5 ${slackConfigured ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-500"}`}>
+          Slack summary: {slackConfigured ? "on" : "off - set SLACK_WEBHOOK_URL"}
+        </span>
+      </div>
       {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
       {result && (
         <div className="mt-4 space-y-2 text-sm">
