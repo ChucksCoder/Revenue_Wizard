@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Scale,
   BookOpen,
+  ShieldCheck,
   Settings,
   LogOut,
   Sparkles,
@@ -23,6 +24,7 @@ const NAV: { section: string; items: { href: string; label: string; icon: typeof
       { href: "/rollforward", label: "Worksheet", icon: TrendingUp },
       { href: "/reconciliation", label: "Reconciliation", icon: Scale },
       { href: "/journals", label: "Journal Entries", icon: BookOpen },
+      { href: "/audit", label: "Audit Trail", icon: ShieldCheck },
     ],
   },
   {
