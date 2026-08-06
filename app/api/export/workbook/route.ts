@@ -8,7 +8,14 @@ import {
   journalEntriesForMonth,
   monthLabel,
   monthRange,
+  addMonths,
 } from "@/lib/engine";
+
+// Detail-sheet caps so exports stay fast and Excel stays usable at 1,000+
+// contracts. Portfolio totals always cover the whole book.
+const DETAIL_MONTHS = 24; // trailing window on per-contract monthly detail
+const MATRIX_MAX_CONTRACTS = 300; // largest balances first
+const SCHEDULE_SHEETS = 40;
 import { db } from "@/lib/db";
 import { contracts, customers, invoices } from "@/lib/schema";
 import { buildRecRows } from "@/lib/rec";
@@ -88,9 +95,14 @@ export const GET = withUser(async (user, req: NextRequest) => {
   }
 
   // ------------------------------------------------- Deferred Rev Rollforward
+  const detailStart = addMonths(asOf, -(DETAIL_MONTHS - 1));
   {
     const ws = wb.addWorksheet("Deferred Rev Rollforward");
-    addTitle(ws, "Deferred Revenue Rollforward by Contract", generated);
+    addTitle(
+      ws,
+      `Deferred Revenue Rollforward by Contract (trailing ${DETAIL_MONTHS} months)`,
+      generated
+    );
     styleHeader(
       ws.addRow([
         "Customer", "Contract", "Month", "Beginning DR", "Billings (net)",
@@ -98,7 +110,7 @@ export const GET = withUser(async (user, req: NextRequest) => {
       ])
     );
     for (const c of byContract) {
-      for (const r of c.rollforward.filter((r) => r.month <= asOf)) {
+      for (const r of c.rollforward.filter((r) => r.month <= asOf && r.month >= detailStart)) {
         const row = ws.addRow([
           c.customerName, c.contractName, monthLabel(r.month),
           r.beginDeferred, r.billings, -r.licenseRec, -r.supportRec, -r.totalRec, r.endDeferred,
@@ -126,7 +138,7 @@ export const GET = withUser(async (user, req: NextRequest) => {
       ws.addRow(["Customer", "Contract", "Month", "Beginning CA", "Additions (rec > billed)", "Relieved by billings", "Ending CA"])
     );
     for (const c of byContract) {
-      for (const r of c.rollforward.filter((r) => r.month <= asOf)) {
+      for (const r of c.rollforward.filter((r) => r.month <= asOf && r.month >= detailStart)) {
         const additions = Math.max(0, r.endContractAsset - r.beginContractAsset + Math.min(r.beginContractAsset, r.billings));
         const relieved = Math.min(r.beginContractAsset, r.billings);
         if (r.beginContractAsset === 0 && r.endContractAsset === 0 && additions === 0) continue;
@@ -144,9 +156,9 @@ export const GET = withUser(async (user, req: NextRequest) => {
   // --------------------------------------------------------- Revenue by Month
   {
     const ws = wb.addWorksheet("Revenue by Contract");
-    addTitle(ws, "Monthly Revenue Recognition by Contract", generated);
+    addTitle(ws, `Monthly Revenue Recognition by Contract (trailing ${DETAIL_MONTHS} months)`, generated);
     const first = months.length ? months[0].month : asOf;
-    const mks = monthRange(first, asOf);
+    const mks = monthRange(first > detailStart ? first : detailStart, asOf);
     styleHeader(ws.addRow(["Customer", "Contract", "Component", ...mks.map(monthLabel), "Total"]));
     for (const c of byContract) {
       for (const comp of ["License", "Support"] as const) {
@@ -212,9 +224,13 @@ export const GET = withUser(async (user, req: NextRequest) => {
   // Deferred Revenue balance (B/S). Mirrors the in-app Matrix view.
   {
     const ws = wb.addWorksheet("Rollforward Matrix");
-    addTitle(ws, "Rollforward Matrix - P&L and Deferred Balance by Contract", generated);
+    addTitle(
+      ws,
+      `Rollforward Matrix - P&L and Deferred Balance by Contract (top ${MATRIX_MAX_CONTRACTS} by balance, trailing ${DETAIL_MONTHS} months)`,
+      generated
+    );
     const first = months.length ? months[0].month : asOf;
-    const mks = monthRange(first, asOf);
+    const mks = monthRange(first > detailStart ? first : detailStart, asOf);
     styleHeader(ws.addRow(["Customer / Contract", "Line", ...mks.map(monthLabel), "Total / Ending"]));
 
     const totalRow = (
@@ -240,7 +256,16 @@ export const GET = withUser(async (user, req: NextRequest) => {
     totalRow("Contract Asset (EOM)", (m) => m.endContractAsset, true);
     ws.addRow([]);
 
-    for (const c of byContract) {
+    const matrixContracts = [...byContract]
+      .sort((a, b) => {
+        const bal = (c: typeof a) => {
+          const last = c.rollforward.filter((r) => r.month <= asOf).slice(-1)[0];
+          return (last?.endDeferred ?? 0) + (last?.endContractAsset ?? 0);
+        };
+        return bal(b) - bal(a);
+      })
+      .slice(0, MATRIX_MAX_CONTRACTS);
+    for (const c of matrixContracts) {
       const rowFor = (mk: string) => c.rollforward.find((r) => r.month === mk);
       const lines: [string, (r: NonNullable<ReturnType<typeof rowFor>>) => number, boolean][] = [
         ["License", (r) => r.licenseRec, false],
@@ -337,7 +362,7 @@ export const GET = withUser(async (user, req: NextRequest) => {
   }
 
   // ------------------------------------------ per-contract detail (schedules)
-  for (const input of inputs.slice(0, 40)) {
+  for (const input of inputs.slice(0, SCHEDULE_SHEETS)) {
     const comp = computeContract(input);
     const safe = `${comp.customerName}`.replace(/[\\/*?[\]:]/g, "").slice(0, 24);
     const ws = wb.addWorksheet(`Sched - ${safe}`.slice(0, 31));

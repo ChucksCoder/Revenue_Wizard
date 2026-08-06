@@ -106,6 +106,13 @@ const STATEMENTS = [
     "key" text PRIMARY KEY NOT NULL,
     "value" jsonb NOT NULL
   )`,
+  // FK + hot-path indexes (Postgres doesn't index FKs automatically); these
+  // keep list queries fast at thousands of contracts/invoices.
+  `CREATE INDEX IF NOT EXISTS "idx_invoices_contract" ON "invoices" ("contract_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_invoices_date" ON "invoices" ("invoice_date")`,
+  `CREATE INDEX IF NOT EXISTS "idx_tranches_contract" ON "tranches" ("contract_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_contracts_customer" ON "contracts" ("customer_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_audit_entity" ON "audit_log" ("entity_id")`,
 ];
 
 const FOREIGN_KEYS: [string, string][] = [

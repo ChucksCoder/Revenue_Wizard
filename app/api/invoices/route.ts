@@ -10,33 +10,87 @@ import {
 import { json, err, withUser } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 
-// Flat invoice view: every invoice with its contract/customer as data points.
-export const GET = withUser(async () => {
-  const [invoiceRows, contractRows, customerRows, il, labelRows] = await Promise.all([
-    db.select().from(invoices),
-    db.select().from(contracts),
-    db.select().from(customers),
-    db.select().from(invoiceLabels),
+// Flat invoice view: paged + searchable so it scales to thousands.
+export const GET = withUser(async (_user, req: NextRequest) => {
+  const p = req.nextUrl.searchParams;
+  const q = (p.get("q") ?? "").trim();
+  const status = p.get("status");
+  const review = p.get("review");
+  const limit = Math.min(Number(p.get("limit") ?? 50), 200);
+  const offset = Math.max(Number(p.get("offset") ?? 0), 0);
+
+  const { or, ilike, eq, sql, inArray, desc } = await import("drizzle-orm");
+
+  const conditions: any[] = [];
+  if (q)
+    conditions.push(
+      or(
+        ilike(invoices.invoiceNumber, `%${q}%`),
+        ilike(invoices.externalRef, `%${q}%`),
+        ilike(contracts.name, `%${q}%`),
+        ilike(customers.name, `%${q}%`)
+      )
+    );
+  if (status) conditions.push(eq(invoices.status, status as any));
+  if (review) conditions.push(eq(invoices.reviewStatus, review as any));
+  const where = conditions.length
+    ? conditions.reduce((a, b) => sql`${a} AND ${b}`)
+    : sql`true`;
+
+  const joined = db
+    .select({ invoice: invoices, contractName: contracts.name, customerName: customers.name })
+    .from(invoices)
+    .leftJoin(contracts, eq(invoices.contractId, contracts.id))
+    .leftJoin(customers, eq(contracts.customerId, customers.id))
+    .where(where as any)
+    .orderBy(desc(invoices.invoiceDate))
+    .limit(limit)
+    .offset(offset);
+
+  const countQ = db
+    .select({ n: sql<number>`count(*)` })
+    .from(invoices)
+    .leftJoin(contracts, eq(invoices.contractId, contracts.id))
+    .leftJoin(customers, eq(contracts.customerId, customers.id))
+    .where(where as any);
+
+  const sumQ = db
+    .select({
+      net: sql<string>`coalesce(sum(${invoices.amount}),0)`,
+      tax: sql<string>`coalesce(sum(${invoices.taxAmount}),0)`,
+    })
+    .from(invoices)
+    .leftJoin(contracts, eq(invoices.contractId, contracts.id))
+    .leftJoin(customers, eq(contracts.customerId, customers.id))
+    .where(sql`${where} AND ${invoices.status} != 'void'`);
+
+  const [rows, countRows, sums, labelRows] = await Promise.all([
+    joined,
+    countQ,
+    sumQ,
     db.select().from(labels),
   ]);
-  const contractById = new Map(contractRows.map((c) => [c.id, c]));
-  const custById = new Map(customerRows.map((c) => [c.id, c]));
+
+  const ids = rows.map((r) => r.invoice.id);
+  const il = ids.length
+    ? await db.select().from(invoiceLabels).where(inArray(invoiceLabels.invoiceId, ids))
+    : [];
   const labelById = new Map(labelRows.map((l) => [l.id, l]));
-  const data = invoiceRows
-    .map((i) => {
-      const c = contractById.get(i.contractId);
-      return {
-        ...i,
-        contractName: c?.name ?? "Unknown",
-        customerName: c ? custById.get(c.customerId)?.name ?? "Unknown" : "Unknown",
-        labels: il
-          .filter((x) => x.invoiceId === i.id)
-          .map((x) => labelById.get(x.labelId))
-          .filter(Boolean),
-      };
-    })
-    .sort((a, b) => b.invoiceDate.localeCompare(a.invoiceDate));
-  return json({ invoices: data, allLabels: labelRows });
+
+  return json({
+    invoices: rows.map((r) => ({
+      ...r.invoice,
+      contractName: r.contractName ?? "Unknown",
+      customerName: r.customerName ?? "Unknown",
+      labels: il
+        .filter((x) => x.invoiceId === r.invoice.id)
+        .map((x) => labelById.get(x.labelId))
+        .filter(Boolean),
+    })),
+    total: Number(countRows[0]?.n ?? 0),
+    sums: { net: Number(sums[0]?.net ?? 0), tax: Number(sums[0]?.tax ?? 0) },
+    allLabels: labelRows,
+  });
 });
 
 export const POST = withUser(async (user, req: NextRequest) => {

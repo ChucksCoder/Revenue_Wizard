@@ -1,33 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Card, Th, Td, api } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { monthLabel } from "@/lib/engine";
-import { buildRecRows } from "@/lib/rec";
 import { useMonth } from "@/lib/month";
 import MonthPicker from "@/components/MonthPicker";
 import { Download } from "lucide-react";
 
+const PAGE_SIZE = 100;
+
 export default function ReconciliationPage() {
   const { month: asOf } = useMonth();
-  const [byContract, setByContract] = useState<any[]>([]);
+  const [data, setData] = useState<any>(null);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api("/api/rollforward").then((d) => {
-      setByContract(d.byContract);
-      setLoading(false);
-    });
-  }, []);
+    setLoading(true);
+    api(
+      `/api/reconciliation?month=${asOf}&q=${encodeURIComponent(q)}&flagged=${flaggedOnly ? 1 : 0}&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`
+    )
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [asOf, q, flaggedOnly, page]);
 
-  const rows = useMemo(() => buildRecRows(byContract, asOf), [byContract, asOf]);
-  const t = (get: (r: any) => number) => fmtMoney(rows.reduce((a, r) => a + get(r), 0));
-  const checksPass = rows.every((r) => Math.abs(r.check) < 0.01);
-
-  if (loading)
+  if (loading && !data)
     return <div className="py-24 text-center text-slate-500">Building reconciliation...</div>;
+
+  const totals = data?.totals ?? {};
+  const rows = data?.rows ?? [];
+  const checksPass = (data?.flaggedCount ?? 0) === 0;
 
   return (
     <div className="space-y-5">
@@ -35,8 +42,8 @@ export default function ReconciliationPage() {
         <div>
           <h1 className="text-2xl font-semibold text-white">Deferred Revenue Reconciliation</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Total consideration less revenue recognized, less future billings = deferred
-            revenue. Revenue runs on the full contract; deferred only holds what&#39;s billed.
+            Total consideration less revenue recognized, less future billings = deferred revenue.
+            Totals cover all {data?.allCount ?? 0} contracts; rows are paged.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -57,8 +64,44 @@ export default function ReconciliationPage() {
         }`}
       >
         {checksPass
-          ? `All ${rows.length} contracts tie: bridge method equals ledger method (billings - recognized) as of ${monthLabel(asOf)}.`
-          : "Some contracts don't tie - their invoices don't sum to TCV. See the Check column."}
+          ? `All ${data?.allCount} contracts tie: bridge method equals ledger method as of ${monthLabel(asOf)}.`
+          : `${data?.flaggedCount} of ${data?.allCount} contracts don't tie - invoices don't sum to TCV.`}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPage(0);
+            setQ(search);
+          }}
+        >
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search customer or contract, press Enter..."
+            className="w-80 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          />
+        </form>
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-400">
+          <input
+            type="checkbox"
+            checked={flaggedOnly}
+            onChange={(e) => {
+              setPage(0);
+              setFlaggedOnly(e.target.checked);
+            }}
+            className="h-4 w-4 rounded border-slate-700 bg-slate-900 accent-rose-500"
+          />
+          Exceptions only
+        </label>
+        <span className="text-xs text-slate-500">
+          {data?.total ?? 0} rows · page {page + 1} of {Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))}
+        </span>
+        <div className="flex gap-1">
+          <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</Button>
+          <Button size="sm" variant="secondary" disabled={(page + 1) * PAGE_SIZE >= (data?.total ?? 0)} onClick={() => setPage(page + 1)}>Next</Button>
+        </div>
       </div>
 
       <Card className="overflow-x-auto">
@@ -82,7 +125,7 @@ export default function ReconciliationPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {rows.map((r: any) => (
               <tr key={r.contractId} className="hover:bg-slate-900/40">
                 <td className="sticky left-0 z-10 max-w-[260px] border-b border-slate-800/50 bg-slate-950 px-3 py-2 text-sm">
                   <Link href={`/contracts/${r.contractId}`} className="text-slate-200 hover:text-indigo-300">
@@ -108,17 +151,19 @@ export default function ReconciliationPage() {
               </tr>
             ))}
             <tr className="bg-slate-900/80 font-semibold">
-              <td className="sticky left-0 z-10 border-b border-slate-800/50 bg-slate-900 px-3 py-2 text-sm text-white">TOTAL</td>
-              <Td right className="text-violet-300">{t((r) => r.licTotal)}</Td>
-              <Td right className="text-slate-200">{t((r) => r.supTotal)}</Td>
-              <Td right className="text-white">{t((r) => r.tcv)}</Td>
-              <Td right className="text-violet-300">({t((r) => r.cumLic)})</Td>
-              <Td right className="text-slate-200">({t((r) => r.cumSup)})</Td>
-              <Td right className="text-slate-200">{t((r) => r.unearned)}</Td>
-              <Td right className="text-amber-300">({t((r) => r.futureBill)})</Td>
-              <Td right className="text-rose-400">({t((r) => r.unbilled)})</Td>
-              <Td right className="text-indigo-300">{t((r) => r.deferred)}</Td>
-              <Td right className="text-sky-300">{t((r) => r.contractAsset)}</Td>
+              <td className="sticky left-0 z-10 border-b border-slate-800/50 bg-slate-900 px-3 py-2 text-sm text-white">
+                TOTAL (all {data?.allCount})
+              </td>
+              <Td right className="text-violet-300">{fmtMoney(totals.licTotal)}</Td>
+              <Td right className="text-slate-200">{fmtMoney(totals.supTotal)}</Td>
+              <Td right className="text-white">{fmtMoney(totals.tcv)}</Td>
+              <Td right className="text-violet-300">({fmtMoney(totals.cumLic)})</Td>
+              <Td right className="text-slate-200">({fmtMoney(totals.cumSup)})</Td>
+              <Td right className="text-slate-200">{fmtMoney(totals.unearned)}</Td>
+              <Td right className="text-amber-300">({fmtMoney(totals.futureBill)})</Td>
+              <Td right className="text-rose-400">({fmtMoney(totals.unbilled)})</Td>
+              <Td right className="text-indigo-300">{fmtMoney(totals.deferred)}</Td>
+              <Td right className="text-sky-300">{fmtMoney(totals.contractAsset)}</Td>
               <Td />
             </tr>
           </tbody>
@@ -126,9 +171,7 @@ export default function ReconciliationPage() {
         <p className="border-t border-slate-800/60 px-4 py-3 text-xs text-slate-500">
           Revenue is recognized on total consideration regardless of billing cadence. Deferred
           revenue = unearned consideration less amounts not yet billed. A negative bridge is a
-          contract asset (earned, unbilled). The Check column ties this bridge to the ledger
-          method (billed to date less recognized to date) - a variance means invoices don&#39;t
-          sum to TCV on that contract. &quot;Unbilled Gap&quot; is TCV never scheduled for billing.
+          contract asset (earned, unbilled). Nonzero Check means invoices don&#39;t sum to TCV.
         </p>
       </Card>
     </div>

@@ -11,21 +11,30 @@ import { ChevronDown, ChevronRight, Download } from "lucide-react";
 
 type View = "matrix" | "monthly";
 
+const PAGE_SIZE = 25;
+
 export default function RollforwardPage() {
   const { month: asOf } = useMonth();
   const [months, setMonths] = useState<any[]>([]);
   const [byContract, setByContract] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [view, setView] = useState<View>("matrix");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api("/api/rollforward").then((d) => {
-      setMonths(d.months);
-      setByContract(d.byContract);
-      setLoading(false);
-    });
-  }, []);
+    setLoading(true);
+    api(`/api/rollforward?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}&q=${encodeURIComponent(q)}`)
+      .then((d) => {
+        setMonths(d.months);
+        setByContract(d.byContract);
+        setTotal(d.total);
+      })
+      .finally(() => setLoading(false));
+  }, [page, q]);
 
   if (loading)
     return <div className="py-24 text-center text-slate-500">Building rollforward...</div>;
@@ -63,6 +72,33 @@ export default function RollforwardPage() {
           </a>
         </div>
       </div>
+
+      {view === "matrix" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPage(0);
+              setQ(search);
+            }}
+            className="relative"
+          >
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search customer or contract, press Enter..."
+              className="w-80 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            />
+          </form>
+          <span className="text-xs text-slate-500">
+            {total} contracts{q ? ` matching "${q}"` : ""} · sorted by balance · page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          </span>
+          <div className="flex gap-1">
+            <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</Button>
+            <Button size="sm" variant="secondary" disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage(page + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
 
       {view === "matrix" ? (
         <Matrix months={months} byContract={byContract} closeMonth={asOf} />

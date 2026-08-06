@@ -5,9 +5,8 @@ import Link from "next/link";
 import { Button, Card, Stat, Th, Td, ReviewBadge, api } from "@/components/ui";
 import MonthPicker from "@/components/MonthPicker";
 import { useMonth } from "@/lib/month";
-import { fmtMoney, fmtMoney0, fmtDate } from "@/lib/format";
+import { fmtMoney, fmtMoney0 } from "@/lib/format";
 import { monthLabel } from "@/lib/engine";
-import { buildRecRows } from "@/lib/rec";
 import {
   Download,
   AlertTriangle,
@@ -15,99 +14,50 @@ import {
   ArrowRight,
   Sparkles,
   BookOpen,
+  Search,
 } from "lucide-react";
+
+const PAGE = 50;
 
 export default function ClosePage() {
   const { month } = useMonth();
-  const [byContract, setByContract] = useState<any[]>([]);
-  const [contracts, setContracts] = useState<any[]>([]);
+  const [data, setData] = useState<any>(null);
+  const [search, setSearch] = useState("");
+  const [shown, setShown] = useState(PAGE);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api("/api/rollforward"), api("/api/contracts")])
-      .then(([rf, c]) => {
-        setByContract(rf.byContract);
-        setContracts(c.contracts);
-      })
+    setLoading(true);
+    setShown(PAGE);
+    api(`/api/close?month=${month}`)
+      .then(setData)
       .finally(() => setLoading(false));
-  }, []);
+  }, [month]);
 
-  const contractById = useMemo(
-    () => new Map(contracts.map((c: any) => [c.id, c])),
-    [contracts]
-  );
-
-  // one line per contract for the selected month
   const rows = useMemo(() => {
-    return byContract
-      .map((c) => {
-        const r = c.rollforward.find((x: any) => x.month === month);
-        const last =
-          c.rollforward.filter((x: any) => x.month <= month).slice(-1)[0] ?? null;
-        const meta = contractById.get(c.contractId);
-        return {
-          contractId: c.contractId,
-          customer: c.customerName,
-          contract: c.contractName,
-          license: r?.licenseRec ?? 0,
-          support: r?.supportRec ?? 0,
-          total: r?.totalRec ?? 0,
-          billings: r?.billings ?? 0,
-          endDeferred: last?.endDeferred ?? 0,
-          endCA: last?.endContractAsset ?? 0,
-          reviewStatus: meta?.reviewStatus ?? "draft",
-          tranched: (meta?.tranches?.length ?? 0) > 0,
-          startedThisMonth: meta?.startDate?.slice(0, 7) === month,
-        };
-      })
-      .filter(
-        (r) =>
-          r.license || r.support || r.billings || r.endDeferred || r.endCA
-      )
-      .sort((a, b) => b.total - a.total);
-  }, [byContract, contractById, month]);
+    if (!data) return [];
+    const q = search.toLowerCase().trim();
+    if (!q) return data.rows;
+    return data.rows.filter(
+      (r: any) =>
+        r.customer.toLowerCase().includes(q) || r.contract.toLowerCase().includes(q)
+    );
+  }, [data, search]);
 
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (a, r) => ({
-          license: a.license + r.license,
-          support: a.support + r.support,
-          total: a.total + r.total,
-          billings: a.billings + r.billings,
-          endDeferred: a.endDeferred + r.endDeferred,
-          endCA: a.endCA + r.endCA,
-        }),
-        { license: 0, support: 0, total: 0, billings: 0, endDeferred: 0, endCA: 0 }
-      ),
-    [rows]
-  );
-
-  const flags = useMemo(
-    () =>
-      buildRecRows(byContract, month).filter(
-        (r) => Math.abs(r.check) >= 0.01 || Math.abs(r.unbilled) >= 0.01
-      ),
-    [byContract, month]
-  );
-
-  const approved = rows.filter((r) => r.reviewStatus === "approved").length;
-  const newThisMonth = rows.filter((r) => r.startedThisMonth);
-
-  if (loading)
+  if (loading || !data)
     return <div className="py-24 text-center text-slate-500">Loading the close...</div>;
+
+  const { totals, flags, counts } = data;
+  const newThisMonth = data.rows.filter((r: any) => r.startedThisMonth);
 
   return (
     <div className="space-y-6">
-      {/* header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-white">
-            {monthLabel(month)} Close
-          </h1>
+          <h1 className="text-2xl font-semibold text-white">{monthLabel(month)} Close</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {rows.length} contracts with activity or balances · {approved} of {rows.length} approved
-            {newThisMonth.length > 0 && ` · ${newThisMonth.length} new this month`}
+            {counts.active} contracts with activity or balances · {counts.approved} approved
+            {counts.newThisMonth > 0 && ` · ${counts.newThisMonth} new this month`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -130,7 +80,6 @@ export default function ClosePage() {
         </div>
       </div>
 
-      {/* the month at a glance: P&L on the left, balance sheet on the right */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <Stat label="License Revenue" value={`$${fmtMoney(totals.license)}`} sub="point-in-time, released tranches" accent="indigo" />
         <Stat label="Support Revenue" value={`$${fmtMoney(totals.support)}`} sub="daily-rate ratable" />
@@ -140,7 +89,6 @@ export default function ClosePage() {
         <Stat label="Contract Assets" value={`$${fmtMoney0(totals.endCA)}`} sub="ending balance" accent="sky" />
       </div>
 
-      {/* tie-out flags */}
       {flags.length > 0 ? (
         <Card className="border-amber-500/30 bg-amber-500/5 p-4">
           <div className="flex items-start gap-3">
@@ -149,41 +97,38 @@ export default function ClosePage() {
               <span className="font-medium text-amber-300">
                 {flags.length} contract{flags.length === 1 ? "" : "s"} need{flags.length === 1 ? "s" : ""} attention before sign-off
               </span>
-              <div className="mt-1.5 space-y-1">
-                {flags.map((f) => (
-                  <Link
-                    key={f.contractId}
-                    href={`/contracts/${f.contractId}`}
-                    className="block text-slate-400 hover:text-amber-200"
-                  >
-                    {f.customerName} — invoices vs TCV off by $
-                    {fmtMoney(Math.abs(f.check) >= 0.01 ? f.check : f.unbilled)}{" "}
-                    <span className="text-slate-600">({f.contractName})</span>
+              <div className="mt-1.5 max-h-40 space-y-1 overflow-y-auto">
+                {flags.map((f: any) => (
+                  <Link key={f.contractId} href={`/contracts/${f.contractId}`} className="block text-slate-400 hover:text-amber-200">
+                    {f.customer} — invoices vs TCV off by ${fmtMoney(f.amount)}{" "}
+                    <span className="text-slate-600">({f.contract})</span>
                   </Link>
                 ))}
               </div>
+              <Link href="/reconciliation" className="mt-2 inline-flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200">
+                Open reconciliation <ArrowRight size={11} />
+              </Link>
             </div>
           </div>
         </Card>
       ) : (
-        rows.length > 0 && (
+        counts.active > 0 && (
           <Card className="border-emerald-500/30 bg-emerald-500/5 p-4">
             <div className="flex items-center gap-2 text-sm text-emerald-300">
               <CheckCircle2 size={15} />
-              Every contract's invoices tie to its total consideration - the bridge equals the ledger on all {rows.length}.
+              Every contract's invoices tie to its total consideration across all {counts.active} contracts.
             </div>
           </Card>
         )
       )}
 
-      {/* new contracts this month */}
       {newThisMonth.length > 0 && (
         <Card className="p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
-            <Sparkles size={14} className="text-indigo-400" /> New in {monthLabel(month)}
+            <Sparkles size={14} className="text-indigo-400" /> New in {monthLabel(month)} ({newThisMonth.length})
           </div>
-          <div className="flex flex-wrap gap-2">
-            {newThisMonth.map((r) => (
+          <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+            {newThisMonth.map((r: any) => (
               <Link
                 key={r.contractId}
                 href={`/contracts/${r.contractId}`}
@@ -198,15 +143,26 @@ export default function ClosePage() {
         </Card>
       )}
 
-      {/* the month, contract by contract */}
       <Card>
-        <div className="flex items-center justify-between px-5 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
           <h2 className="text-sm font-semibold text-white">
             Revenue by contract — {monthLabel(month)}
+            <span className="ml-2 text-xs font-normal text-slate-500">{rows.length} rows</span>
           </h2>
-          <Link href="/rollforward" className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
-            Full worksheet <ArrowRight size={12} />
-          </Link>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-2 text-slate-600" />
+              <input
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setShown(PAGE); }}
+                placeholder="Filter customer or contract..."
+                className="w-64 rounded-lg border border-slate-700 bg-slate-900 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-indigo-500"
+              />
+            </div>
+            <Link href="/rollforward" className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
+              Full worksheet <ArrowRight size={12} />
+            </Link>
+          </div>
         </div>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full">
@@ -228,12 +184,11 @@ export default function ClosePage() {
               {rows.length === 0 && (
                 <tr>
                   <Td colSpan={8} className="py-12 text-center text-slate-600">
-                    No activity in {monthLabel(month)}. Pick another close month above, or add
-                    contracts under Records.
+                    No activity in {monthLabel(month)}.
                   </Td>
                 </tr>
               )}
-              {rows.map((r) => (
+              {rows.slice(0, shown).map((r: any) => (
                 <tr key={r.contractId} className="hover:bg-slate-900/50">
                   <td className="sticky left-0 z-10 max-w-[280px] border-b border-slate-800/50 bg-slate-950 px-3 py-2 text-sm">
                     <Link href={`/contracts/${r.contractId}`} className="font-medium text-slate-200 hover:text-indigo-300">
@@ -253,21 +208,28 @@ export default function ClosePage() {
                   <Td><ReviewBadge status={r.reviewStatus} /></Td>
                 </tr>
               ))}
-              {rows.length > 0 && (
-                <tr className="bg-slate-900/80 font-semibold">
-                  <td className="sticky left-0 z-10 border-b border-slate-800/50 bg-slate-900 px-3 py-2 text-sm text-white">TOTAL</td>
-                  <Td right className="text-violet-300">{fmtMoney(totals.license)}</Td>
-                  <Td right className="text-slate-200">{fmtMoney(totals.support)}</Td>
-                  <Td right className="text-emerald-400">{fmtMoney(totals.total)}</Td>
-                  <Td right className="text-slate-200">{fmtMoney(totals.billings)}</Td>
-                  <Td right className="text-indigo-300">{fmtMoney(totals.endDeferred)}</Td>
-                  <Td right className="text-sky-300">{fmtMoney(totals.endCA)}</Td>
-                  <Td />
-                </tr>
-              )}
+              <tr className="bg-slate-900/80 font-semibold">
+                <td className="sticky left-0 z-10 border-b border-slate-800/50 bg-slate-900 px-3 py-2 text-sm text-white">
+                  TOTAL (all {counts.active})
+                </td>
+                <Td right className="text-violet-300">{fmtMoney(totals.license)}</Td>
+                <Td right className="text-slate-200">{fmtMoney(totals.support)}</Td>
+                <Td right className="text-emerald-400">{fmtMoney(totals.total)}</Td>
+                <Td right className="text-slate-200">{fmtMoney(totals.billings)}</Td>
+                <Td right className="text-indigo-300">{fmtMoney(totals.endDeferred)}</Td>
+                <Td right className="text-sky-300">{fmtMoney(totals.endCA)}</Td>
+                <Td />
+              </tr>
             </tbody>
           </table>
         </div>
+        {rows.length > shown && (
+          <div className="border-t border-slate-800/60 p-3 text-center">
+            <Button variant="secondary" size="sm" onClick={() => setShown(shown + PAGE)}>
+              Show {Math.min(PAGE, rows.length - shown)} more of {rows.length - shown} remaining
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );
