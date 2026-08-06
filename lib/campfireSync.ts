@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { contracts, customers, invoices } from "./schema";
+import { contracts, customers, invoices, labels, contractLabels, invoiceLabels } from "./schema";
 import { eq, isNotNull } from "drizzle-orm";
 import { logAudit } from "./audit";
 import type { SessionUser } from "./auth";
@@ -65,6 +65,25 @@ async function cfAll(path: string, extra: Record<string, string> = {}) {
   return out;
 }
 
+// Extract a custom field value from Campfire's contract_custom_fields, which
+// may arrive as [{name/label: "Reseller", value: "AWS"}] or [{"Reseller": "AWS"}].
+function extractCustomField(fields: any[] | null | undefined, keyMatch: string): string | null {
+  for (const f of fields ?? []) {
+    if (!f || typeof f !== "object") continue;
+    const name = String((f as any).name ?? (f as any).label ?? (f as any).field ?? "").toLowerCase();
+    if (name.includes(keyMatch)) {
+      const v = (f as any).value ?? (f as any).values;
+      if (v != null && v !== "") return Array.isArray(v) ? v.join(", ") : String(v);
+    }
+    for (const [k, v] of Object.entries(f)) {
+      if (!k.toLowerCase().includes(keyMatch) || v == null || v === "") continue;
+      if (Array.isArray(v)) return v.join(", ");
+      if (typeof v !== "object") return String(v);
+    }
+  }
+  return null;
+}
+
 function invoiceAmounts(i: any) {
   const lines: any[] = i.lines ?? [];
   const pre = lines.length
@@ -112,6 +131,28 @@ export async function runCampfireSync(
   const custByName = new Map(customerRows.map((c) => [c.name, c.id]));
   const localInvoices = await db.select().from(invoices).where(isNotNull(invoices.externalRef));
   const byExtRef = new Map(localInvoices.map((i) => [i.externalRef!, i]));
+
+  // label helpers for Campfire custom fields (Reseller, Billing portal)
+  const labelRows = await db.select().from(labels);
+  const labelIdByName = new Map(labelRows.map((l) => [l.name, l.id]));
+  async function ensureLabel(name: string, color: string): Promise<string> {
+    const hit = labelIdByName.get(name);
+    if (hit) return hit;
+    const [row] = await db
+      .insert(labels)
+      .values({ name, color })
+      .onConflictDoNothing()
+      .returning();
+    const id = row?.id ?? (await db.select().from(labels).where(eq(labels.name, name)))[0].id;
+    labelIdByName.set(name, id);
+    return id;
+  }
+  async function tagContract(contractId: string, labelId: string) {
+    await db.insert(contractLabels).values({ contractId, labelId }).onConflictDoNothing();
+  }
+  async function tagInvoice(invoiceId: string, labelId: string) {
+    await db.insert(invoiceLabels).values({ invoiceId, labelId }).onConflictDoNothing();
+  }
 
   // modifiedSince (cron): "new" means the contract RECORD was created since
   // the cutoff (created_at). Do NOT rely on last_modified_at alone - Campfire's
@@ -203,9 +244,17 @@ export async function runCampfireSync(
     const { pre, tax, voided } = invoiceAmounts(i);
     const existing = byExtRef.get(extRef);
 
+    // Campfire custom fields -> labels (idempotent, applied even if unchanged)
+    const reseller = extractCustomField(i.contract_custom_fields, "reseller");
+    if (reseller)
+      await tagContract(local.id, await ensureLabel(`Reseller: ${reseller}`, "#f59e0b"));
+    const portalRaw = i.custom_field_billing_portal ?? extractCustomField(i.contract_custom_fields, "billing portal");
+    const portal =
+      portalRaw === true ? "Billing portal" : portalRaw ? `Billing portal: ${portalRaw}` : null;
+
     if (!existing) {
       if (voided) { report.skipped++; continue; }
-      await db.insert(invoices).values({
+      const inserted = await db.insert(invoices).values({
         contractId: local.id,
         invoiceNumber: i.invoice_number || `CF-${extRef}`,
         invoiceDate: i.invoice_date,
@@ -218,10 +267,14 @@ export async function runCampfireSync(
         externalRef: extRef,
         description: `Campfire invoice ${i.invoice_number} (id ${extRef}), status ${i.status ?? i.payment_status}`,
         preparedById: user?.id ?? null,
-      });
+      }).returning();
+      if (portal && inserted[0])
+        await tagInvoice(inserted[0].id, await ensureLabel(portal, "#06b6d4"));
       report.invoicesCreated++;
       continue;
     }
+
+    if (portal) await tagInvoice(existing.id, await ensureLabel(portal, "#06b6d4"));
 
     const changed =
       Math.abs(Number(existing.amount) - pre) > 0.01 ||
