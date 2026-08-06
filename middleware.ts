@@ -13,12 +13,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
   const token = req.cookies.get("revrec_session")?.value;
+  const secret = process.env.AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    // never verify sessions against the known dev fallback in production
+    return NextResponse.json({ error: "Server misconfigured: AUTH_SECRET missing" }, { status: 500 });
+  }
   if (token) {
     try {
-      await jwtVerify(
-        token,
-        new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me")
-      );
+      await jwtVerify(token, new TextEncoder().encode(secret || "dev-secret-change-me"));
       return NextResponse.next();
     } catch {
       // fall through

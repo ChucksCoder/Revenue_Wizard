@@ -7,6 +7,11 @@ import { eq } from "drizzle-orm";
 const COOKIE = "revrec_session";
 
 function secret() {
+  // In production a missing AUTH_SECRET would mean sessions signed with a
+  // publicly known fallback - forgeable by anyone. Hard-fail instead.
+  if (!process.env.AUTH_SECRET && process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_SECRET must be set in production");
+  }
   return new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 }
 

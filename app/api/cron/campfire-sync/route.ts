@@ -1,5 +1,12 @@
 import { NextRequest } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { runCampfireSync, campfireConfigured } from "@/lib/campfireSync";
+
+function secretsMatch(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -26,8 +33,11 @@ async function postSlack(text: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const auth = req.headers.get("authorization") ?? "";
+  if (
+    !process.env.CRON_SECRET ||
+    !secretsMatch(auth, `Bearer ${process.env.CRON_SECRET}`)
+  ) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!campfireConfigured()) {

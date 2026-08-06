@@ -21,6 +21,9 @@ export async function GET() {
 // Bootstrap the first admin account. Only works when no users exist.
 export async function POST(req: NextRequest) {
   try {
+    const { rateLimit, clientIp } = await import("@/lib/rateLimit");
+    const rl = rateLimit(`setup:${clientIp(req)}`, 5, 10 * 60 * 1000);
+    if (!rl.ok) return err(`Too many attempts - try again in ${rl.retryAfterSec}s`, 429);
     await ensureSchema();
     if (await anyUsersExist())
       return err("Setup already completed. Ask an admin to create your account.", 403);
