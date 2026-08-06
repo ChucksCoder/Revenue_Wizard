@@ -7,6 +7,7 @@ import {
   FileText,
   Receipt,
   TrendingUp,
+  Scale,
   BookOpen,
   Settings,
   LogOut,
@@ -14,13 +15,27 @@ import {
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 
-const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/contracts", label: "Contracts", icon: FileText },
-  { href: "/invoices", label: "Invoices", icon: Receipt },
-  { href: "/rollforward", label: "Rollforward", icon: TrendingUp },
-  { href: "/journals", label: "Journal Entries", icon: BookOpen },
-  { href: "/settings", label: "Settings", icon: Settings },
+const NAV: { section: string; items: { href: string; label: string; icon: typeof LayoutDashboard }[] }[] = [
+  {
+    section: "Monthly close",
+    items: [
+      { href: "/", label: "Close", icon: LayoutDashboard },
+      { href: "/rollforward", label: "Worksheet", icon: TrendingUp },
+      { href: "/reconciliation", label: "Reconciliation", icon: Scale },
+      { href: "/journals", label: "Journal Entries", icon: BookOpen },
+    ],
+  },
+  {
+    section: "Records",
+    items: [
+      { href: "/contracts", label: "Contracts", icon: FileText },
+      { href: "/invoices", label: "Invoices", icon: Receipt },
+    ],
+  },
+  {
+    section: "Admin",
+    items: [{ href: "/settings", label: "Settings", icon: Settings }],
+  },
 ];
 
 export default function Sidebar({ user }: { user: SessionUser }) {
@@ -44,25 +59,34 @@ export default function Sidebar({ user }: { user: SessionUser }) {
           <div className="text-[11px] text-slate-500">Coder Technologies</div>
         </div>
       </div>
-      <nav className="mt-2 flex-1 space-y-0.5 px-3">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-indigo-500/10 text-indigo-300"
-                  : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-              }`}
-            >
-              <Icon size={16} />
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="mt-2 flex-1 space-y-4 overflow-y-auto px-3">
+        {NAV.map(({ section, items }) => (
+          <div key={section}>
+            <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+              {section}
+            </div>
+            <div className="space-y-0.5">
+              {items.map(({ href, label, icon: Icon }) => {
+                const active =
+                  href === "/" ? pathname === "/" : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-indigo-500/10 text-indigo-300"
+                        : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
       <div className="border-t border-slate-800/80 p-4">
         <div className="mb-2 flex items-center gap-2.5">

@@ -18,6 +18,7 @@ import LabelPicker from "@/components/LabelPicker";
 import ReviewActions from "@/components/ReviewActions";
 import InvoiceModal from "@/components/InvoiceModal";
 import { useUser } from "@/lib/useUser";
+import { useMonth } from "@/lib/month";
 import { fmtMoney, fmtDate, num } from "@/lib/format";
 import { monthLabel } from "@/lib/engine";
 import { ArrowLeft, Plus, Trash2, Pencil, Wand2 } from "lucide-react";
@@ -218,6 +219,7 @@ function Overview({ contract, computation, onSave }: { contract: any; computatio
         )}
       </Card>
       <div className="space-y-4">
+        {contract.tranches.length > 0 && <LicenseRelease contract={contract} />}
         <Card className="p-5">
           <h2 className="mb-3 text-sm font-semibold text-white">SSP allocation</h2>
           <div className="space-y-2 text-sm">
@@ -256,6 +258,51 @@ function Overview({ contract, computation, onSave }: { contract: any; computatio
         )}
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------- License release
+
+function LicenseRelease({ contract }: { contract: any }) {
+  const { month } = useMonth();
+  const pct = num(contract.licensePct);
+  const tranches = [...contract.tranches].sort((a: any, b: any) =>
+    a.startDate.localeCompare(b.startDate)
+  );
+  const released = tranches.filter((t: any) => t.startDate.slice(0, 7) <= month);
+  const releasedLic = released.reduce((a: number, t: any) => a + num(t.amount) * pct, 0);
+  const totalLic = tranches.reduce((a: number, t: any) => a + num(t.amount) * pct, 0);
+  return (
+    <Card className="p-5">
+      <h2 className="mb-1 text-sm font-semibold text-white">License release schedule</h2>
+      <p className="mb-3 text-xs text-slate-500">
+        Licenses deliver per tranche - not all TCV up front. Through {monthLabel(month)}:{" "}
+        <span className="text-violet-300">${fmtMoney(releasedLic)}</span> of ${fmtMoney(totalLic)} released.
+      </p>
+      <div className="space-y-1.5">
+        {tranches.map((t: any) => {
+          const isReleased = t.startDate.slice(0, 7) <= month;
+          return (
+            <div
+              key={t.id}
+              className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm ${
+                isReleased ? "border-violet-500/30 bg-violet-500/5" : "border-slate-800"
+              }`}
+            >
+              <span className={isReleased ? "text-slate-200" : "text-slate-500"}>
+                {t.name} · {fmtDate(t.startDate)}
+              </span>
+              <span className={`tabular ${isReleased ? "text-violet-300" : "text-slate-600"}`}>
+                ${fmtMoney(num(t.amount) * pct)}
+                <span className="ml-2 text-[10px] uppercase tracking-wider">
+                  {isReleased ? "released" : "future"}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 

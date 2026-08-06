@@ -5,16 +5,17 @@ import Link from "next/link";
 import { Button, Card, Th, Td, api } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { monthLabel, monthRange } from "@/lib/engine";
-import { buildRecRows } from "@/lib/rec";
+import { useMonth } from "@/lib/month";
+import MonthPicker from "@/components/MonthPicker";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 
-type View = "matrix" | "monthly" | "rec";
+type View = "matrix" | "monthly";
 
 export default function RollforwardPage() {
+  const { month: asOf } = useMonth();
   const [months, setMonths] = useState<any[]>([]);
   const [byContract, setByContract] = useState<any[]>([]);
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
-  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 7));
   const [view, setView] = useState<View>("matrix");
   const [loading, setLoading] = useState(true);
 
@@ -33,18 +34,16 @@ export default function RollforwardPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Rollforward</h1>
+          <h1 className="text-2xl font-semibold text-white">Worksheet</h1>
           <p className="mt-1 text-sm text-slate-500">
             {view === "matrix"
-              ? "Months horizontal: license & support revenue (P&L) and ending deferred balance (B/S) per contract."
-              : view === "rec"
-                ? "Bridge from total consideration to the balance sheet: TCV less revenue recognized, less future billings, equals deferred revenue."
-                : "Deferred revenue and contract assets month by month. Click a month for by-contract detail."}
+              ? "Months horizontal: license & support revenue (P&L) and ending deferred balance (B/S) per contract. Close month highlighted."
+              : "Deferred revenue and contract assets month by month. Click a month for by-contract detail."}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-slate-700">
-            {(["matrix", "monthly", "rec"] as View[]).map((v) => (
+            {(["matrix", "monthly"] as View[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -52,16 +51,11 @@ export default function RollforwardPage() {
                   view === v ? "bg-indigo-500/20 text-indigo-300" : "text-slate-400 hover:bg-slate-800"
                 }`}
               >
-                {v === "matrix" ? "Matrix" : v === "monthly" ? "Monthly" : "Reconciliation"}
+                {v === "matrix" ? "Matrix" : "Monthly"}
               </button>
             ))}
           </div>
-          <input
-            type="month"
-            value={asOf}
-            onChange={(e) => setAsOf(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none"
-          />
+          <MonthPicker />
           <a href={`/api/export/workbook?asOf=${asOf}`}>
             <Button variant="secondary">
               <span className="inline-flex items-center gap-1.5"><Download size={14} /> Audit workbook (.xlsx)</span>
@@ -71,9 +65,7 @@ export default function RollforwardPage() {
       </div>
 
       {view === "matrix" ? (
-        <Matrix months={months} byContract={byContract} />
-      ) : view === "rec" ? (
-        <Reconciliation byContract={byContract} asOf={asOf} />
+        <Matrix months={months} byContract={byContract} closeMonth={asOf} />
       ) : (
         <Monthly
           months={months}
@@ -88,14 +80,18 @@ export default function RollforwardPage() {
 
 // ------------------------------------------------------------------- Matrix
 
-function Matrix({ months, byContract }: { months: any[]; byContract: any[] }) {
+function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract: any[]; closeMonth: string }) {
   const mks: string[] = useMemo(() => {
     if (months.length === 0) return [];
     return monthRange(months[0].month, months[months.length - 1].month);
   }, [months]);
 
-  const cell = (v: number, cls = "text-slate-300") =>
-    v === 0 ? <span className="text-slate-700">-</span> : <span className={cls}>{fmtMoney(v)}</span>;
+  const cell = (v: number, cls = "text-slate-300", mk?: string) =>
+    v === 0 ? (
+      <span className="text-slate-700">-</span>
+    ) : (
+      <span className={`${cls} ${mk === closeMonth ? "font-semibold" : ""}`}>{fmtMoney(v)}</span>
+    );
 
   const rowFor = (c: any, mk: string) => c.rollforward.find((r: any) => r.month === mk);
 
@@ -108,7 +104,14 @@ function Matrix({ months, byContract }: { months: any[]; byContract: any[] }) {
               Contract / Line
             </th>
             {mks.map((mk) => (
-              <Th key={mk} right>{monthLabel(mk)}</Th>
+              <th
+                key={mk}
+                className={`whitespace-nowrap border-b border-slate-800 px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider ${
+                  mk === closeMonth ? "bg-indigo-500/10 text-indigo-300" : "text-slate-500"
+                }`}
+              >
+                {monthLabel(mk)}
+              </th>
             ))}
             <Th right>Total</Th>
           </tr>
@@ -129,7 +132,9 @@ function Matrix({ months, byContract }: { months: any[]; byContract: any[] }) {
               {mks.map((mk) => {
                 const m = months.find((x) => x.month === mk);
                 return (
-                  <Td key={mk} right>{cell(m ? row.get(m) : 0, row.cls)}</Td>
+                  <Td key={mk} right className={mk === closeMonth ? "bg-indigo-500/5" : ""}>
+                    {cell(m ? row.get(m) : 0, row.cls, mk)}
+                  </Td>
                 );
               })}
               <Td right className="font-semibold">
@@ -158,6 +163,7 @@ function Matrix({ months, byContract }: { months: any[]; byContract: any[] }) {
                 licTotal={licTotal}
                 supTotal={supTotal}
                 lastDR={lastDR}
+                closeMonth={closeMonth}
               />
             );
           })}
@@ -167,7 +173,7 @@ function Matrix({ months, byContract }: { months: any[]; byContract: any[] }) {
   );
 }
 
-function FragmentRows({ c, mks, rowFor, cell, licTotal, supTotal, lastDR }: any) {
+function FragmentRows({ c, mks, rowFor, cell, licTotal, supTotal, lastDR, closeMonth }: any) {
   const lines = [
     { label: "License", get: (r: any) => r.licenseRec, cls: "text-violet-300", total: licTotal },
     { label: "Support", get: (r: any) => r.supportRec, cls: "text-slate-300", total: supTotal },
@@ -195,8 +201,8 @@ function FragmentRows({ c, mks, rowFor, cell, licTotal, supTotal, lastDR }: any)
           {mks.map((mk: string) => {
             const r = rowFor(c, mk);
             return (
-              <Td key={mk} right className="text-xs">
-                {cell(r ? line.get(r) : line.balance && rowFor(c, mk) === undefined && mk > c.lastMonth ? lastDR : 0, line.cls)}
+              <Td key={mk} right className={`text-xs ${mk === closeMonth ? "bg-indigo-500/5" : ""}`}>
+                {cell(r ? line.get(r) : line.balance && rowFor(c, mk) === undefined && mk > c.lastMonth ? lastDR : 0, line.cls, mk)}
               </Td>
             );
           })}
@@ -204,85 +210,6 @@ function FragmentRows({ c, mks, rowFor, cell, licTotal, supTotal, lastDR }: any)
         </tr>
       ))}
     </>
-  );
-}
-
-// ------------------------------------------------------------- Reconciliation
-
-function Reconciliation({ byContract, asOf }: { byContract: any[]; asOf: string }) {
-  const rows = useMemo(() => buildRecRows(byContract, asOf), [byContract, asOf]);
-  const t = (get: (r: any) => number) =>
-    fmtMoney(rows.reduce((a, r) => a + get(r), 0));
-
-  return (
-    <Card className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr>
-            <Th>Customer / Contract</Th>
-            <Th right>Total License</Th>
-            <Th right>Total Support</Th>
-            <Th right>TCV</Th>
-            <Th right>License Rec&#39;d</Th>
-            <Th right>Support Rec&#39;d</Th>
-            <Th right>Unearned</Th>
-            <Th right>Less: Future Billings</Th>
-            <Th right>Less: Unbilled Gap</Th>
-            <Th right>= Deferred Rev</Th>
-            <Th right>Contract Asset</Th>
-            <Th right>Check</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.contractId} className="hover:bg-slate-900/40">
-              <Td>
-                <Link href={`/contracts/${r.contractId}`} className="text-slate-200 hover:text-indigo-300">
-                  {r.customerName}
-                </Link>
-                <span className="ml-2 text-xs text-slate-600">{r.contractName}</span>
-              </Td>
-              <Td right className="text-violet-300">{fmtMoney(r.licTotal)}</Td>
-              <Td right className="text-slate-300">{fmtMoney(r.supTotal)}</Td>
-              <Td right className="font-medium text-slate-200">{fmtMoney(r.tcv)}</Td>
-              <Td right className="text-violet-300">({fmtMoney(r.cumLic)})</Td>
-              <Td right className="text-slate-300">({fmtMoney(r.cumSup)})</Td>
-              <Td right className="text-slate-200">{fmtMoney(r.unearned)}</Td>
-              <Td right className="text-amber-300">({fmtMoney(r.futureBill)})</Td>
-              <Td right className={r.unbilled ? "text-rose-400" : "text-slate-700"}>
-                {r.unbilled ? `(${fmtMoney(r.unbilled)})` : "-"}
-              </Td>
-              <Td right className="font-medium text-indigo-300">{fmtMoney(r.deferred)}</Td>
-              <Td right className="font-medium text-sky-300">{fmtMoney(r.contractAsset)}</Td>
-              <Td right className={Math.abs(r.check) < 0.01 ? "text-emerald-400" : "text-rose-400"}>
-                {Math.abs(r.check) < 0.01 ? "✓" : fmtMoney(r.check)}
-              </Td>
-            </tr>
-          ))}
-          <tr className="bg-slate-900/80 font-semibold">
-            <Td className="text-white">TOTAL</Td>
-            <Td right className="text-violet-300">{t((r) => r.licTotal)}</Td>
-            <Td right className="text-slate-200">{t((r) => r.supTotal)}</Td>
-            <Td right className="text-white">{t((r) => r.tcv)}</Td>
-            <Td right className="text-violet-300">({t((r) => r.cumLic)})</Td>
-            <Td right className="text-slate-200">({t((r) => r.cumSup)})</Td>
-            <Td right className="text-slate-200">{t((r) => r.unearned)}</Td>
-            <Td right className="text-amber-300">({t((r) => r.futureBill)})</Td>
-            <Td right className="text-rose-400">({t((r) => r.unbilled)})</Td>
-            <Td right className="text-indigo-300">{t((r) => r.deferred)}</Td>
-            <Td right className="text-sky-300">{t((r) => r.contractAsset)}</Td>
-            <Td />
-          </tr>
-        </tbody>
-      </table>
-      <p className="border-t border-slate-800/60 px-4 py-3 text-xs text-slate-500">
-        Revenue is recognized on total consideration regardless of billing cadence. Deferred
-        revenue = unearned consideration less amounts not yet billed. A negative bridge is a
-        contract asset (earned, unbilled). The Check column ties this bridge to the ledger
-        method (billed to date less recognized to date) - a variance means invoices don&#39;t
-        sum to TCV on that contract. &quot;Unbilled Gap&quot; is TCV never scheduled for billing.
-      </p>
-    </Card>
   );
 }
 

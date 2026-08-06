@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { Button, Card, Th, Td, api } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { monthLabel } from "@/lib/engine";
+import { useMonth } from "@/lib/month";
+import MonthPicker from "@/components/MonthPicker";
 import { Download, CheckCircle2, AlertTriangle } from "lucide-react";
 
 export default function JournalsPage() {
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const { month } = useMonth();
   const [lines, setLines] = useState<any[]>([]);
   const [totals, setTotals] = useState({ debit: 0, credit: 0 });
   const [loading, setLoading] = useState(true);
@@ -36,12 +38,7 @@ export default function JournalsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none"
-          />
+          <MonthPicker />
           <a href={`/api/export/netsuite?month=${month}`}>
             <Button variant="secondary">
               <span className="inline-flex items-center gap-1.5"><Download size={14} /> NetSuite CSV</span>
