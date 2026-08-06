@@ -5,15 +5,23 @@ import { users } from "@/lib/schema";
 import { anyUsersExist, createSession } from "@/lib/auth";
 import { json, err } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
+import { ensureSchema } from "@/lib/migrate";
 
 export async function GET() {
-  const exists = await anyUsersExist();
-  return json({ needsSetup: !exists });
+  try {
+    await ensureSchema(); // creates tables on first run, no-op afterward
+    const exists = await anyUsersExist();
+    return json({ needsSetup: !exists });
+  } catch (e) {
+    console.error(e);
+    return err(e instanceof Error ? e.message : "Database connection failed", 500);
+  }
 }
 
 // Bootstrap the first admin account. Only works when no users exist.
 export async function POST(req: NextRequest) {
   try {
+    await ensureSchema();
     if (await anyUsersExist())
       return err("Setup already completed. Ask an admin to create your account.", 403);
     const { email, name, password } = await req.json();
@@ -44,6 +52,6 @@ export async function POST(req: NextRequest) {
     return json({ ok: true });
   } catch (e) {
     console.error(e);
-    return err("Setup failed", 500);
+    return err(e instanceof Error ? e.message : "Setup failed", 500);
   }
 }

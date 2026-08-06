@@ -164,6 +164,74 @@ export const GET = withUser(async (user, req: NextRequest) => {
     ws.views = [{ state: "frozen", xSplit: 3, ySplit: 4 }];
   }
 
+  // ----------------------------------------------------- Rollforward Matrix
+  // Months horizontal; per contract: License, Support (P&L) and ending
+  // Deferred Revenue balance (B/S). Mirrors the in-app Matrix view.
+  {
+    const ws = wb.addWorksheet("Rollforward Matrix");
+    addTitle(ws, "Rollforward Matrix - P&L and Deferred Balance by Contract", generated);
+    const first = months.length ? months[0].month : asOf;
+    const mks = monthRange(first, asOf);
+    styleHeader(ws.addRow(["Customer / Contract", "Line", ...mks.map(monthLabel), "Total / Ending"]));
+
+    const totalRow = (
+      label: string,
+      get: (m: (typeof months)[number]) => number,
+      balance = false
+    ) => {
+      const vals = mks.map((mk) => months.find((m) => m.month === mk)).map((m) => (m ? get(m) : 0));
+      const last = vals.length ? vals[vals.length - 1] : 0;
+      const row = ws.addRow([
+        "PORTFOLIO TOTAL",
+        label,
+        ...vals,
+        balance ? last : vals.reduce((a, b) => a + b, 0),
+      ]);
+      row.font = { bold: true };
+      for (let i = 3; i <= 3 + mks.length; i++) row.getCell(i).numFmt = MONEY;
+    };
+    totalRow("License Revenue", (m) => m.licenseRec);
+    totalRow("Support Revenue", (m) => m.supportRec);
+    totalRow("Total Revenue", (m) => m.totalRec);
+    totalRow("Deferred Revenue (EOM)", (m) => m.endDeferred, true);
+    totalRow("Contract Asset (EOM)", (m) => m.endContractAsset, true);
+    ws.addRow([]);
+
+    for (const c of byContract) {
+      const rowFor = (mk: string) => c.rollforward.find((r) => r.month === mk);
+      const lines: [string, (r: NonNullable<ReturnType<typeof rowFor>>) => number, boolean][] = [
+        ["License", (r) => r.licenseRec, false],
+        ["Support", (r) => r.supportRec, false],
+        ["Deferred (EOM)", (r) => r.endDeferred, true],
+      ];
+      lines.forEach(([label, get, balance], idx) => {
+        const vals = mks.map((mk) => {
+          const r = rowFor(mk);
+          if (r) return get(r);
+          // after contract end, carry the ending balance for balance lines
+          if (balance && mk > c.lastMonth && c.rollforward.length)
+            return get(c.rollforward[c.rollforward.length - 1]);
+          return 0;
+        });
+        const total = balance
+          ? vals.length ? vals[vals.length - 1] : 0
+          : vals.reduce((a, b) => a + b, 0);
+        const row = ws.addRow([
+          idx === 0 ? `${c.customerName} - ${c.contractName}` : "",
+          label,
+          ...vals,
+          Math.round(total * 100) / 100,
+        ]);
+        for (let i = 3; i <= 3 + mks.length; i++) row.getCell(i).numFmt = MONEY;
+        if (idx === 0) row.getCell(1).font = { bold: true };
+      });
+    }
+    ws.getColumn(1).width = 40;
+    ws.getColumn(2).width = 18;
+    for (let i = 3; i <= 3 + mks.length; i++) ws.getColumn(i).width = 14;
+    ws.views = [{ state: "frozen", xSplit: 2, ySplit: 4 }];
+  }
+
   // -------------------------------------------------------- Journal Entries
   {
     const ws = wb.addWorksheet("Journal Entries");
