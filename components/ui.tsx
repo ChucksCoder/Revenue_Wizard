@@ -198,10 +198,12 @@ export function Stat({
     amber: "text-amber-400",
     sky: "text-sky-400",
   };
+  const size =
+    value.length > 14 ? "text-lg" : value.length > 11 ? "text-xl" : "text-2xl";
   return (
     <Card className="p-5">
       <div className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</div>
-      <div className={`mt-1.5 text-2xl font-semibold tabular ${accent ? colors[accent] : "text-white"}`}>
+      <div className={`mt-1.5 ${size} font-semibold leading-tight tabular ${accent ? colors[accent] : "text-white"}`}>
         {value}
       </div>
       {sub && <div className="mt-1 text-xs text-slate-500">{sub}</div>}

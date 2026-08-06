@@ -81,10 +81,10 @@ export default function ClosePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
-        <Stat label="License Revenue" value={`$${fmtMoney(totals.license)}`} sub="point-in-time, released tranches" accent="indigo" />
-        <Stat label="Support Revenue" value={`$${fmtMoney(totals.support)}`} sub="daily-rate ratable" />
-        <Stat label="Total Revenue" value={`$${fmtMoney(totals.total)}`} sub={`${monthLabel(month)} P&L`} accent="emerald" />
-        <Stat label="Billings (net)" value={`$${fmtMoney(totals.billings)}`} sub="invoices this month" />
+        <Stat label="License Revenue" value={`$${fmtMoney0(totals.license)}`} sub="point-in-time, released tranches" accent="indigo" />
+        <Stat label="Support Revenue" value={`$${fmtMoney0(totals.support)}`} sub="daily-rate ratable" />
+        <Stat label="Total Revenue" value={`$${fmtMoney0(totals.total)}`} sub={`${monthLabel(month)} P&L`} accent="emerald" />
+        <Stat label="Billings (net)" value={`$${fmtMoney0(totals.billings)}`} sub="invoices this month" />
         <Stat label="Deferred Revenue" value={`$${fmtMoney0(totals.endDeferred)}`} sub="ending balance" accent="indigo" />
         <Stat label="Contract Assets" value={`$${fmtMoney0(totals.endCA)}`} sub="ending balance" accent="sky" />
       </div>
