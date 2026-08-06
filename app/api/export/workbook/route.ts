@@ -11,6 +11,7 @@ import {
 } from "@/lib/engine";
 import { db } from "@/lib/db";
 import { contracts, customers, invoices } from "@/lib/schema";
+import { buildRecRows } from "@/lib/rec";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -162,6 +163,48 @@ export const GET = withUser(async (user, req: NextRequest) => {
     ws.getColumn(1).width = 22;
     ws.getColumn(2).width = 30;
     ws.views = [{ state: "frozen", xSplit: 3, ySplit: 4 }];
+  }
+
+  // ------------------------------------------------ Deferred Rev Reconciliation
+  // Bridge from total consideration to the balance sheet, one line per contract.
+  {
+    const ws = wb.addWorksheet("Deferred Rev Rec");
+    addTitle(ws, `Deferred Revenue Reconciliation - as of ${monthLabel(asOf)}`, generated);
+    styleHeader(
+      ws.addRow([
+        "Customer", "Contract", "Total License", "Total Support", "TCV",
+        "License Rec'd", "Support Rec'd", "Unearned",
+        "Less: Future Billings", "Less: Unbilled Gap",
+        "Deferred Revenue", "Contract Asset", "Check vs Ledger",
+      ])
+    );
+    const recRows = buildRecRows(byContract, asOf);
+    for (const r of recRows) {
+      const row = ws.addRow([
+        r.customerName, r.contractName, r.licTotal, r.supTotal, r.tcv,
+        -r.cumLic, -r.cumSup, r.unearned, -r.futureBill, -r.unbilled,
+        r.deferred, r.contractAsset, r.check,
+      ]);
+      for (let i = 3; i <= 13; i++) row.getCell(i).numFmt = MONEY;
+      if (Math.abs(r.check) >= 0.01)
+        row.getCell(13).font = { color: { argb: "FFDC2626" }, bold: true };
+    }
+    const sum = (get: (r: (typeof recRows)[number]) => number) =>
+      Math.round(recRows.reduce((a, r) => a + get(r), 0) * 100) / 100;
+    const tr = ws.addRow([
+      "TOTAL", "", sum((r) => r.licTotal), sum((r) => r.supTotal), sum((r) => r.tcv),
+      -sum((r) => r.cumLic), -sum((r) => r.cumSup), sum((r) => r.unearned),
+      -sum((r) => r.futureBill), -sum((r) => r.unbilled),
+      sum((r) => r.deferred), sum((r) => r.contractAsset), "",
+    ]);
+    tr.font = { bold: true };
+    for (let i = 3; i <= 12; i++) tr.getCell(i).numFmt = MONEY;
+    ws.addRow([]);
+    ws.addRow([
+      "Revenue is recognized on total consideration regardless of billing cadence. Deferred revenue = unearned less amounts not yet billed; negative = contract asset. Nonzero Check means invoices don't sum to TCV.",
+    ]).getCell(1).font = { italic: true, size: 9, color: { argb: "FF64748B" } };
+    [22, 32, 14, 14, 14, 14, 14, 14, 18, 16, 16, 15, 14].forEach((w, i) => (ws.getColumn(i + 1).width = w));
+    ws.views = [{ state: "frozen", ySplit: 4 }];
   }
 
   // ----------------------------------------------------- Rollforward Matrix

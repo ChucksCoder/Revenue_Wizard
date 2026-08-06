@@ -5,9 +5,10 @@ import Link from "next/link";
 import { Button, Card, Th, Td, api } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { monthLabel, monthRange } from "@/lib/engine";
+import { buildRecRows } from "@/lib/rec";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 
-type View = "matrix" | "monthly";
+type View = "matrix" | "monthly" | "rec";
 
 export default function RollforwardPage() {
   const [months, setMonths] = useState<any[]>([]);
@@ -36,12 +37,14 @@ export default function RollforwardPage() {
           <p className="mt-1 text-sm text-slate-500">
             {view === "matrix"
               ? "Months horizontal: license & support revenue (P&L) and ending deferred balance (B/S) per contract."
-              : "Deferred revenue and contract assets month by month. Click a month for by-contract detail."}
+              : view === "rec"
+                ? "Bridge from total consideration to the balance sheet: TCV less revenue recognized, less future billings, equals deferred revenue."
+                : "Deferred revenue and contract assets month by month. Click a month for by-contract detail."}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-slate-700">
-            {(["matrix", "monthly"] as View[]).map((v) => (
+            {(["matrix", "monthly", "rec"] as View[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -49,7 +52,7 @@ export default function RollforwardPage() {
                   view === v ? "bg-indigo-500/20 text-indigo-300" : "text-slate-400 hover:bg-slate-800"
                 }`}
               >
-                {v === "matrix" ? "Matrix" : "Monthly"}
+                {v === "matrix" ? "Matrix" : v === "monthly" ? "Monthly" : "Reconciliation"}
               </button>
             ))}
           </div>
@@ -69,6 +72,8 @@ export default function RollforwardPage() {
 
       {view === "matrix" ? (
         <Matrix months={months} byContract={byContract} />
+      ) : view === "rec" ? (
+        <Reconciliation byContract={byContract} asOf={asOf} />
       ) : (
         <Monthly
           months={months}
@@ -199,6 +204,85 @@ function FragmentRows({ c, mks, rowFor, cell, licTotal, supTotal, lastDR }: any)
         </tr>
       ))}
     </>
+  );
+}
+
+// ------------------------------------------------------------- Reconciliation
+
+function Reconciliation({ byContract, asOf }: { byContract: any[]; asOf: string }) {
+  const rows = useMemo(() => buildRecRows(byContract, asOf), [byContract, asOf]);
+  const t = (get: (r: any) => number) =>
+    fmtMoney(rows.reduce((a, r) => a + get(r), 0));
+
+  return (
+    <Card className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr>
+            <Th>Customer / Contract</Th>
+            <Th right>Total License</Th>
+            <Th right>Total Support</Th>
+            <Th right>TCV</Th>
+            <Th right>License Rec&#39;d</Th>
+            <Th right>Support Rec&#39;d</Th>
+            <Th right>Unearned</Th>
+            <Th right>Less: Future Billings</Th>
+            <Th right>Less: Unbilled Gap</Th>
+            <Th right>= Deferred Rev</Th>
+            <Th right>Contract Asset</Th>
+            <Th right>Check</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.contractId} className="hover:bg-slate-900/40">
+              <Td>
+                <Link href={`/contracts/${r.contractId}`} className="text-slate-200 hover:text-indigo-300">
+                  {r.customerName}
+                </Link>
+                <span className="ml-2 text-xs text-slate-600">{r.contractName}</span>
+              </Td>
+              <Td right className="text-violet-300">{fmtMoney(r.licTotal)}</Td>
+              <Td right className="text-slate-300">{fmtMoney(r.supTotal)}</Td>
+              <Td right className="font-medium text-slate-200">{fmtMoney(r.tcv)}</Td>
+              <Td right className="text-violet-300">({fmtMoney(r.cumLic)})</Td>
+              <Td right className="text-slate-300">({fmtMoney(r.cumSup)})</Td>
+              <Td right className="text-slate-200">{fmtMoney(r.unearned)}</Td>
+              <Td right className="text-amber-300">({fmtMoney(r.futureBill)})</Td>
+              <Td right className={r.unbilled ? "text-rose-400" : "text-slate-700"}>
+                {r.unbilled ? `(${fmtMoney(r.unbilled)})` : "-"}
+              </Td>
+              <Td right className="font-medium text-indigo-300">{fmtMoney(r.deferred)}</Td>
+              <Td right className="font-medium text-sky-300">{fmtMoney(r.contractAsset)}</Td>
+              <Td right className={Math.abs(r.check) < 0.01 ? "text-emerald-400" : "text-rose-400"}>
+                {Math.abs(r.check) < 0.01 ? "✓" : fmtMoney(r.check)}
+              </Td>
+            </tr>
+          ))}
+          <tr className="bg-slate-900/80 font-semibold">
+            <Td className="text-white">TOTAL</Td>
+            <Td right className="text-violet-300">{t((r) => r.licTotal)}</Td>
+            <Td right className="text-slate-200">{t((r) => r.supTotal)}</Td>
+            <Td right className="text-white">{t((r) => r.tcv)}</Td>
+            <Td right className="text-violet-300">({t((r) => r.cumLic)})</Td>
+            <Td right className="text-slate-200">({t((r) => r.cumSup)})</Td>
+            <Td right className="text-slate-200">{t((r) => r.unearned)}</Td>
+            <Td right className="text-amber-300">({t((r) => r.futureBill)})</Td>
+            <Td right className="text-rose-400">({t((r) => r.unbilled)})</Td>
+            <Td right className="text-indigo-300">{t((r) => r.deferred)}</Td>
+            <Td right className="text-sky-300">{t((r) => r.contractAsset)}</Td>
+            <Td />
+          </tr>
+        </tbody>
+      </table>
+      <p className="border-t border-slate-800/60 px-4 py-3 text-xs text-slate-500">
+        Revenue is recognized on total consideration regardless of billing cadence. Deferred
+        revenue = unearned consideration less amounts not yet billed. A negative bridge is a
+        contract asset (earned, unbilled). The Check column ties this bridge to the ledger
+        method (billed to date less recognized to date) - a variance means invoices don&#39;t
+        sum to TCV on that contract. &quot;Unbilled Gap&quot; is TCV never scheduled for billing.
+      </p>
+    </Card>
   );
 }
 
