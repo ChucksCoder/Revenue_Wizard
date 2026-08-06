@@ -7,7 +7,8 @@ import { Plus, Trash2, RefreshCw } from "lucide-react";
 
 function CampfireSync() {
   const [configured, setConfigured] = useState<boolean | null>(null);
-  const [startAfter, setStartAfter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
@@ -23,7 +24,7 @@ function CampfireSync() {
     try {
       const d = await api("/api/sync/campfire", {
         method: "POST",
-        body: JSON.stringify(startAfter ? { startAfter } : {}),
+        body: JSON.stringify({ from: from || null, to: to || null }),
       });
       setResult(d.report);
     } catch (e) {
@@ -48,12 +49,8 @@ function CampfireSync() {
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        <Input
-          label="Only contracts starting on/after (optional)"
-          type="date"
-          value={startAfter}
-          onChange={(e) => setStartAfter(e.target.value)}
-        />
+        <Input label="From (optional)" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <Input label="To (optional)" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         <Button onClick={sync} disabled={busy || configured === false}>
           <span className="inline-flex items-center gap-1.5">
             <RefreshCw size={14} className={busy ? "animate-spin" : ""} />
@@ -61,6 +58,11 @@ function CampfireSync() {
           </span>
         </Button>
       </div>
+      <p className="mt-2 text-[11px] text-slate-600">
+        The window applies to contract start dates and invoice dates - e.g. 2026-08-01 to
+        2026-08-05 grabs deals and billings from those days. Leave blank for everything.
+        New contracts also pull their full future invoice schedule automatically.
+      </p>
       {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
       {result && (
         <div className="mt-4 space-y-2 text-sm">
