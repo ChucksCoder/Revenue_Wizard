@@ -83,12 +83,17 @@ export function campfireConfigured(): boolean {
 export async function runCampfireSync(
   user: SessionUser | null,
   from: string | null,
-  to: string | null
+  to: string | null,
+  opts?: { modifiedSince?: string } // ISO timestamp: only contracts created/changed since then
 ): Promise<SyncReport> {
   if (!campfireConfigured()) throw new Error("CAMPFIRE_API_KEY is not set");
 
   const report: SyncReport = {
-    window: from || to ? `${from ?? "..."} to ${to ?? "..."}` : "all time",
+    window: opts?.modifiedSince
+      ? `modified since ${opts.modifiedSince.slice(0, 16)}Z${from || to ? `; invoices ${from ?? "..."} to ${to ?? "..."}` : ""}`
+      : from || to
+        ? `${from ?? "..."} to ${to ?? "..."}`
+        : "all time",
     contractsSeen: 0,
     contractsCreated: 0,
     invoicesSeen: 0,
@@ -108,12 +113,22 @@ export async function runCampfireSync(
   const localInvoices = await db.select().from(invoices).where(isNotNull(invoices.externalRef));
   const byExtRef = new Map(localInvoices.map((i) => [i.externalRef!, i]));
 
-  const cfContracts = (await cfAll(CONTRACTS_PATH)).filter(
+  // modifiedSince (cron): let Campfire filter server-side to contracts
+  // created/changed since the timestamp - catches backdated start dates.
+  // Otherwise (manual): pull all, filter locally on contract_start_date.
+  const cfContracts = (
+    await cfAll(
+      CONTRACTS_PATH,
+      opts?.modifiedSince ? { last_modified_at__gte: opts.modifiedSince } : {}
+    )
+  ).filter(
     (c) => !c.is_deleted && c.contract_start_date && (c.contract_end_date || c.working_end_date)
   );
-  const inWindow = cfContracts.filter(
-    (c) => (!from || c.contract_start_date >= from) && (!to || c.contract_start_date <= to)
-  );
+  const inWindow = opts?.modifiedSince
+    ? cfContracts
+    : cfContracts.filter(
+        (c) => (!from || c.contract_start_date >= from) && (!to || c.contract_start_date <= to)
+      );
   report.contractsSeen = inWindow.length;
 
   const newLocalIds: string[] = [];

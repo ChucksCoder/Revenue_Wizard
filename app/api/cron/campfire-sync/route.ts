@@ -35,14 +35,20 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: false, error: "CAMPFIRE_API_KEY not set" }, { status: 200 });
   }
 
-  const to = new Date();
-  const from = new Date(to.getTime() - 3 * 86400000);
+  // Contracts: only ones created/modified in Campfire in the last ~25h
+  // (the sync itself only creates contracts we don't already have).
+  // Invoices: dated in the trailing 3 days, plus full schedules for any
+  // newly created contracts. All upserts are idempotent.
+  const now = new Date();
+  const modifiedSince = new Date(now.getTime() - 25 * 3600000).toISOString();
+  const to = now;
+  const from = new Date(now.getTime() - 3 * 86400000);
   const appUrl = process.env.APP_URL ?? "https://revenue-wizard.vercel.app";
 
   try {
-    const report = await runCampfireSync(null, iso(from), iso(to));
+    const report = await runCampfireSync(null, iso(from), iso(to), { modifiedSince });
     const lines = [
-      `:fire: *Revenue Hub - daily Campfire sync* (${iso(from)} to ${iso(to)})`,
+      `:fire: *Revenue Hub - daily Campfire sync* (new/changed in last 24h)`,
       `Contracts: ${report.contractsSeen} seen, *${report.contractsCreated} new* (created as drafts${report.contractsCreated > 0 ? " - review + add tranches for ramp deals" : ""})`,
       `Invoices: ${report.invoicesSeen} seen, *${report.invoicesCreated} new*, ${report.invoicesUpdated} updated`,
     ];
