@@ -30,7 +30,11 @@ export interface RecRow {
  */
 export function buildRecRows(byContract: ContractComputation[], asOf: string): RecRow[] {
   const r2 = (x: number) => Math.round(x * 100) / 100;
-  return byContract.map((c) => {
+  // A contract belongs to a close month only once it has STARTED (contract
+  // start date, or an earlier invoice). firstMonth captures both, so a deal
+  // signed in July that starts in August stays out of July's rec and flags
+  // and appears in August's - months separate on start date, not sign date.
+  return byContract.filter((c) => c.firstMonth <= asOf).map((c) => {
     const tcv = r2(c.licenseTotal + c.supportTotal);
     let cumLic = 0, cumSup = 0, cumBill = 0, futureBill = 0, totalBill = 0;
     for (const r of c.rollforward) {

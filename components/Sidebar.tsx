@@ -10,6 +10,7 @@ import {
   Scale,
   BookOpen,
   ShieldCheck,
+  Tag,
   Settings,
   LogOut,
   Sparkles,
@@ -32,6 +33,7 @@ const NAV: { section: string; items: { href: string; label: string; icon: typeof
     items: [
       { href: "/contracts", label: "Contracts", icon: FileText },
       { href: "/invoices", label: "Invoices", icon: Receipt },
+      { href: "/labels", label: "Labels", icon: Tag },
     ],
   },
   {
