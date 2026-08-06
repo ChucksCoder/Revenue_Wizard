@@ -6,7 +6,7 @@ audit-ready exports.
 
 ## Accounting policy (built in)
 
-- SSP split default **20% license / 80% support** (overridable per contract).
+- SSP split default *20% license / 80% support* (overridable per contract).
 - **License is recognized point-in-time in the close month** of each contract or
   tranche - including multi-year deals billed annually. The excess of recognition
   over billings is carried as a **contract asset**, relieved by later invoices.
