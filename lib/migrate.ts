@@ -115,6 +115,7 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "idx_audit_entity" ON "audit_log" ("entity_id")`,
   // Campfire sync support
   `ALTER TABLE "contracts" ADD COLUMN IF NOT EXISTS "campfire_id" text`,
+  `ALTER TABLE "contracts" ADD COLUMN IF NOT EXISTS "crm_link" text`,
   `CREATE INDEX IF NOT EXISTS "idx_contracts_campfire" ON "contracts" ("campfire_id")`,
   `CREATE INDEX IF NOT EXISTS "idx_invoices_external" ON "invoices" ("external_ref")`,
 ];

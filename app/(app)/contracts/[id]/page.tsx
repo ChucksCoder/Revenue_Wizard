@@ -21,7 +21,8 @@ import { useUser } from "@/lib/useUser";
 import { useMonth } from "@/lib/month";
 import { fmtMoney, fmtDate, num } from "@/lib/format";
 import { monthLabel } from "@/lib/engine";
-import { ArrowLeft, Plus, Trash2, Pencil, Wand2 } from "lucide-react";
+import { campfireContractUrl, campfireInvoiceUrl } from "@/lib/links";
+import { ArrowLeft, Plus, Trash2, Pencil, Wand2, ExternalLink, Flame, Cloud } from "lucide-react";
 
 const TABS = ["Overview", "Tranches", "Invoices", "Schedule", "Activity"] as const;
 
@@ -78,13 +79,33 @@ export default function ContractDetail({ params }: { params: Promise<{ id: strin
             {contract.contractNumber ? ` · ${contract.contractNumber}` : ""} ·{" "}
             {fmtDate(contract.startDate)} → {fmtDate(contract.endDate)} · ${fmtMoney(contract.tcv)} TCV
           </p>
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <LabelPicker
               allLabels={allLabels}
               selected={contract.labels}
               onChange={(labelIds) => patch({ labelIds })}
               onLabelsCreated={load}
             />
+            {campfireContractUrl(contract.campfireId) && (
+              <a
+                href={campfireContractUrl(contract.campfireId)!}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-0.5 text-[11px] font-medium text-orange-300 hover:bg-orange-500/20"
+              >
+                <Flame size={11} /> Campfire <ExternalLink size={9} />
+              </a>
+            )}
+            {contract.crmLink && (
+              <a
+                href={contract.crmLink}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20"
+              >
+                <Cloud size={11} /> Salesforce <ExternalLink size={9} />
+              </a>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -558,7 +579,20 @@ function Invoices({ contract, reload, role, allLabels }: { contract: any; reload
             {contract.invoices.map((i: any) => (
               <tr key={i.id} className="hover:bg-slate-900/50">
                 <Td className="font-medium text-slate-200">{i.invoiceNumber}</Td>
-                <Td className="text-slate-500">{i.externalRef ?? "-"}</Td>
+                <Td>
+                  {campfireInvoiceUrl(i.externalRef) ? (
+                    <a
+                      href={campfireInvoiceUrl(i.externalRef)!}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-orange-300/90 hover:text-orange-200"
+                    >
+                      {i.externalRef} <ExternalLink size={10} />
+                    </a>
+                  ) : (
+                    <span className="text-slate-500">{i.externalRef ?? "-"}</span>
+                  )}
+                </Td>
                 <Td className="text-slate-400">{fmtDate(i.invoiceDate)}</Td>
                 <Td className="text-slate-500">
                   {i.periodStart ? `${fmtDate(i.periodStart)} → ${fmtDate(i.periodEnd)}` : "-"}

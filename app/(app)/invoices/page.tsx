@@ -8,7 +8,8 @@ import ReviewActions from "@/components/ReviewActions";
 import InvoiceModal from "@/components/InvoiceModal";
 import { useUser } from "@/lib/useUser";
 import { fmtMoney, fmtDate } from "@/lib/format";
-import { Pencil, Search } from "lucide-react";
+import { campfireInvoiceUrl } from "@/lib/links";
+import { Pencil, Search, ExternalLink } from "lucide-react";
 
 const PAGE_SIZE = 50;
 
@@ -136,7 +137,20 @@ export default function InvoicesPage() {
                     </Link>
                   </Td>
                   <Td className="max-w-[220px] truncate text-slate-500">{i.contractName}</Td>
-                  <Td className="text-slate-500">{i.externalRef ?? "-"}</Td>
+                  <Td>
+                    {campfireInvoiceUrl(i.externalRef) ? (
+                      <a
+                        href={campfireInvoiceUrl(i.externalRef)!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-orange-300/90 hover:text-orange-200"
+                      >
+                        {i.externalRef} <ExternalLink size={10} />
+                      </a>
+                    ) : (
+                      <span className="text-slate-500">{i.externalRef ?? "-"}</span>
+                    )}
+                  </Td>
                   <Td className="text-slate-400">{fmtDate(i.invoiceDate)}</Td>
                   <Td right className="text-slate-200">${fmtMoney(i.amount)}</Td>
                   <Td right className="text-slate-500">${fmtMoney(i.taxAmount)}</Td>

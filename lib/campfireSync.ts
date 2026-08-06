@@ -104,7 +104,7 @@ export async function runCampfireSync(
   };
 
   const localContracts = await db
-    .select({ id: contracts.id, campfireId: contracts.campfireId, tcv: contracts.tcv, name: contracts.name })
+    .select({ id: contracts.id, campfireId: contracts.campfireId, tcv: contracts.tcv, name: contracts.name, crmLink: contracts.crmLink })
     .from(contracts)
     .where(isNotNull(contracts.campfireId));
   const byCfId = new Map(localContracts.map((c) => [c.campfireId!, c]));
@@ -144,6 +144,9 @@ export async function runCampfireSync(
         report.conflicts.push(
           `Contract "${existing.name}": Campfire TCV ${cfTcv.toFixed(2)} vs app ${Number(existing.tcv).toFixed(2)} - not changed, review manually`
         );
+      // backfill the Salesforce link if we don't have it (metadata, not accounting data)
+      if (!existing.crmLink && c.crm_link)
+        await db.update(contracts).set({ crmLink: c.crm_link }).where(eq(contracts.id, existing.id));
       continue;
     }
     let customerId = custByName.get(c.client_name);
@@ -165,11 +168,12 @@ export async function runCampfireSync(
         billingFrequency: "annual",
         dayCount: "exclusive",
         campfireId: cfId,
+        crmLink: c.crm_link || null,
         notes: `Synced from Campfire ${new Date().toISOString().slice(0, 10)} (${c.client_campfire_id ?? ""}, status ${c.status}). Review vs signed contract; add tranches if licenses release over time.`,
         preparedById: user?.id ?? null,
       })
       .returning();
-    byCfId.set(cfId, { id: row.id, campfireId: cfId, tcv: row.tcv, name: row.name });
+    byCfId.set(cfId, { id: row.id, campfireId: cfId, tcv: row.tcv, name: row.name, crmLink: row.crmLink });
     newLocalIds.push(row.id);
     report.contractsCreated++;
     await logAudit(user, "contract", row.id, "created", { source: "campfire-sync", cfId });
