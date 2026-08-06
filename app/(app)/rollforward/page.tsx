@@ -80,6 +80,8 @@ export default function RollforwardPage() {
 
 // ------------------------------------------------------------------- Matrix
 
+const STICKY = "sticky left-0 z-10 w-60 min-w-60 max-w-60 border-r border-slate-800 shadow-[10px_0_14px_-10px_rgba(0,0,0,0.9)]";
+
 function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract: any[]; closeMonth: string }) {
   const mks: string[] = useMemo(() => {
     if (months.length === 0) return [];
@@ -97,42 +99,49 @@ function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract:
 
   return (
     <Card className="overflow-x-auto">
-      <table className="w-full">
+      <table className="w-full border-separate border-spacing-0">
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 border-b border-slate-800 bg-slate-900 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <th className={`${STICKY} bg-slate-900 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500`}>
               Contract / Line
             </th>
             {mks.map((mk) => (
               <th
                 key={mk}
                 className={`whitespace-nowrap border-b border-slate-800 px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider ${
-                  mk === closeMonth ? "bg-indigo-500/10 text-indigo-300" : "text-slate-500"
+                  mk === closeMonth ? "bg-indigo-500/15 text-indigo-300" : "text-slate-500"
                 }`}
               >
                 {monthLabel(mk)}
               </th>
             ))}
-            <Th right>Total</Th>
+            <Th right>Total / End</Th>
           </tr>
         </thead>
         <tbody>
           {/* Portfolio totals */}
           {[
-            { label: "TOTAL License Revenue", get: (m: any) => m.licenseRec, cls: "text-violet-300" },
-            { label: "TOTAL Support Revenue", get: (m: any) => m.supportRec, cls: "text-slate-200" },
-            { label: "TOTAL Revenue", get: (m: any) => m.totalRec, cls: "text-emerald-400" },
-            { label: "TOTAL Deferred Revenue (EOM)", get: (m: any) => m.endDeferred, cls: "text-indigo-300", balance: true },
-            { label: "TOTAL Contract Asset (EOM)", get: (m: any) => m.endContractAsset, cls: "text-sky-300", balance: true },
-          ].map((row) => (
+            { label: "License Revenue", get: (m: any) => m.licenseRec, cls: "text-violet-300" },
+            { label: "Support Revenue", get: (m: any) => m.supportRec, cls: "text-slate-200" },
+            { label: "Total Revenue", get: (m: any) => m.totalRec, cls: "text-emerald-400" },
+            { label: "Deferred Rev (EOM)", get: (m: any) => m.endDeferred, cls: "text-indigo-300", balance: true },
+            { label: "Contract Asset (EOM)", get: (m: any) => m.endContractAsset, cls: "text-sky-300", balance: true },
+          ].map((row, i) => (
             <tr key={row.label} className="bg-slate-900/80 font-semibold">
-              <td className="sticky left-0 z-10 whitespace-nowrap border-b border-slate-800 bg-slate-900 px-3 py-2 text-sm text-white">
-                {row.label}
+              <td className={`${STICKY} border-b border-slate-800/60 bg-slate-900 px-3 py-1.5`}>
+                <div className="flex items-baseline justify-between gap-2">
+                  {i === 0 ? (
+                    <span className="text-xs font-bold uppercase tracking-wider text-white">Portfolio</span>
+                  ) : (
+                    <span />
+                  )}
+                  <span className={`text-[11px] font-medium ${row.cls}`}>{row.label}</span>
+                </div>
               </td>
               {mks.map((mk) => {
                 const m = months.find((x) => x.month === mk);
                 return (
-                  <Td key={mk} right className={mk === closeMonth ? "bg-indigo-500/5" : ""}>
+                  <Td key={mk} right className={mk === closeMonth ? "bg-indigo-500/10" : ""}>
                     {cell(m ? row.get(m) : 0, row.cls, mk)}
                   </Td>
                 );
@@ -144,72 +153,70 @@ function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract:
               </Td>
             </tr>
           ))}
-          <tr><td className="py-1" colSpan={mks.length + 2}></td></tr>
 
-          {/* Per-contract blocks */}
+          {/* Per-contract blocks: 3 compact rows, no header row */}
           {byContract.map((c) => {
             const licTotal = c.rollforward.reduce((a: number, r: any) => a + r.licenseRec, 0);
             const supTotal = c.rollforward.reduce((a: number, r: any) => a + r.supportRec, 0);
             const lastDR = c.rollforward.length
               ? c.rollforward[c.rollforward.length - 1].endDeferred
               : 0;
-            return (
-              <FragmentRows
-                key={c.contractId}
-                c={c}
-                mks={mks}
-                rowFor={rowFor}
-                cell={cell}
-                licTotal={licTotal}
-                supTotal={supTotal}
-                lastDR={lastDR}
-                closeMonth={closeMonth}
-              />
-            );
+            const lines = [
+              { label: "License", get: (r: any) => r.licenseRec, cls: "text-violet-300", total: licTotal, balance: false },
+              { label: "Support", get: (r: any) => r.supportRec, cls: "text-slate-300", total: supTotal, balance: false },
+              { label: "Deferred", get: (r: any) => r.endDeferred, cls: "text-indigo-300", total: lastDR, balance: true },
+            ];
+            return lines.map((line, li) => (
+              <tr key={`${c.contractId}-${line.label}`} className="group hover:bg-slate-900/40">
+                <td
+                  className={`${STICKY} bg-slate-950 px-3 py-1.5 ${li === 0 ? "border-t-2 border-t-slate-800" : ""} ${li === 2 ? "border-b border-slate-800/40" : ""}`}
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    {li === 0 ? (
+                      <Link
+                        href={`/contracts/${c.contractId}`}
+                        title={c.contractName}
+                        className="truncate text-sm font-semibold text-slate-200 hover:text-indigo-300"
+                      >
+                        {c.customerName}
+                      </Link>
+                    ) : (
+                      <span />
+                    )}
+                    <span className="shrink-0 text-[11px] text-slate-500">{line.label}</span>
+                  </div>
+                </td>
+                {mks.map((mk: string) => {
+                  const r = rowFor(c, mk);
+                  const v = r
+                    ? line.get(r)
+                    : line.balance && mk > c.lastMonth
+                      ? lastDR
+                      : 0;
+                  return (
+                    <td
+                      key={mk}
+                      className={`whitespace-nowrap px-3 py-1.5 text-right text-xs tabular ${
+                        li === 0 ? "border-t-2 border-t-slate-800" : ""
+                      } ${li === 2 ? "border-b border-slate-800/40" : ""} ${mk === closeMonth ? "bg-indigo-500/10" : ""}`}
+                    >
+                      {cell(v, line.cls, mk)}
+                    </td>
+                  );
+                })}
+                <td
+                  className={`whitespace-nowrap px-3 py-1.5 text-right text-xs font-medium tabular ${
+                    li === 0 ? "border-t-2 border-t-slate-800" : ""
+                  } ${li === 2 ? "border-b border-slate-800/40" : ""}`}
+                >
+                  {cell(line.total, line.cls)}
+                </td>
+              </tr>
+            ));
           })}
         </tbody>
       </table>
     </Card>
-  );
-}
-
-function FragmentRows({ c, mks, rowFor, cell, licTotal, supTotal, lastDR, closeMonth }: any) {
-  const lines = [
-    { label: "License", get: (r: any) => r.licenseRec, cls: "text-violet-300", total: licTotal },
-    { label: "Support", get: (r: any) => r.supportRec, cls: "text-slate-300", total: supTotal },
-    { label: "Deferred (EOM)", get: (r: any) => r.endDeferred, cls: "text-indigo-300", total: lastDR, balance: true },
-  ];
-  return (
-    <>
-      <tr>
-        <td
-          className="sticky left-0 z-10 whitespace-nowrap border-b border-slate-800/50 bg-slate-950 px-3 pb-1 pt-3 text-sm font-semibold text-white"
-          colSpan={1}
-        >
-          <Link href={`/contracts/${c.contractId}`} className="hover:text-indigo-300">
-            {c.customerName}
-          </Link>
-          <span className="ml-2 text-xs font-normal text-slate-600">{c.contractName}</span>
-        </td>
-        <td colSpan={mks.length + 1} className="border-b border-slate-800/50 bg-slate-950/50"></td>
-      </tr>
-      {lines.map((line) => (
-        <tr key={line.label} className="hover:bg-slate-900/40">
-          <td className="sticky left-0 z-10 whitespace-nowrap border-b border-slate-800/50 bg-slate-950 py-1.5 pl-6 pr-3 text-xs text-slate-500">
-            {line.label}
-          </td>
-          {mks.map((mk: string) => {
-            const r = rowFor(c, mk);
-            return (
-              <Td key={mk} right className={`text-xs ${mk === closeMonth ? "bg-indigo-500/5" : ""}`}>
-                {cell(r ? line.get(r) : line.balance && rowFor(c, mk) === undefined && mk > c.lastMonth ? lastDR : 0, line.cls, mk)}
-              </Td>
-            );
-          })}
-          <Td right className="text-xs font-medium">{cell(line.total, line.cls)}</Td>
-        </tr>
-      ))}
-    </>
   );
 }
 
