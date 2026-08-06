@@ -113,8 +113,11 @@ export async function runCampfireSync(
   const localInvoices = await db.select().from(invoices).where(isNotNull(invoices.externalRef));
   const byExtRef = new Map(localInvoices.map((i) => [i.externalRef!, i]));
 
-  // modifiedSince (cron): let Campfire filter server-side to contracts
-  // created/changed since the timestamp - catches backdated start dates.
+  // modifiedSince (cron): "new" means the contract RECORD was created since
+  // the cutoff (created_at). Do NOT rely on last_modified_at alone - Campfire's
+  // own nightly automation touches last_modified_at on every contract, which
+  // would make the whole book look new. The server-side filter just trims the
+  // payload; created_at is the real gate.
   // Otherwise (manual): pull all, filter locally on contract_start_date.
   const cfContracts = (
     await cfAll(
@@ -125,7 +128,7 @@ export async function runCampfireSync(
     (c) => !c.is_deleted && c.contract_start_date && (c.contract_end_date || c.working_end_date)
   );
   const inWindow = opts?.modifiedSince
-    ? cfContracts
+    ? cfContracts.filter((c) => String(c.created_at ?? "") >= opts.modifiedSince!)
     : cfContracts.filter(
         (c) => (!from || c.contract_start_date >= from) && (!to || c.contract_start_date <= to)
       );
