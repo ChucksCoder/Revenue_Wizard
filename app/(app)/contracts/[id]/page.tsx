@@ -272,13 +272,27 @@ function LicenseRelease({ contract }: { contract: any }) {
   const released = tranches.filter((t: any) => t.startDate.slice(0, 7) <= month);
   const releasedLic = released.reduce((a: number, t: any) => a + num(t.amount) * pct, 0);
   const totalLic = tranches.reduce((a: number, t: any) => a + num(t.amount) * pct, 0);
+  const releasedTCV = released.reduce((a: number, t: any) => a + num(t.amount), 0);
+  const totalTCV = tranches.reduce((a: number, t: any) => a + num(t.amount), 0);
+  const remainingTCV = totalTCV - releasedTCV;
   return (
     <Card className="p-5">
       <h2 className="mb-1 text-sm font-semibold text-white">License release schedule</h2>
       <p className="mb-3 text-xs text-slate-500">
         Licenses deliver per tranche - not all TCV up front. Through {monthLabel(month)}:{" "}
-        <span className="text-violet-300">${fmtMoney(releasedLic)}</span> of ${fmtMoney(totalLic)} released.
+        <span className="text-violet-300">${fmtMoney(releasedLic)}</span> of ${fmtMoney(totalLic)}{" "}
+        license released.
       </p>
+      <div className="mb-3 grid grid-cols-2 gap-2 text-sm">
+        <div className="rounded-lg border border-slate-800 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Released TCV</div>
+          <div className="tabular text-slate-200">${fmtMoney(releasedTCV)}</div>
+        </div>
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wider text-amber-400/80">Not yet released</div>
+          <div className="tabular text-amber-300">${fmtMoney(remainingTCV)}</div>
+        </div>
+      </div>
       <div className="space-y-1.5">
         {tranches.map((t: any) => {
           const isReleased = t.startDate.slice(0, 7) <= month;

@@ -3,7 +3,89 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Input, Select, Th, Td, LabelChip, api } from "@/components/ui";
 import { useUser } from "@/lib/useUser";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, RefreshCw } from "lucide-react";
+
+function CampfireSync() {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [startAfter, setStartAfter] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api("/api/sync/campfire").then((d) => setConfigured(d.configured)).catch(() => setConfigured(false));
+  }, []);
+
+  async function sync() {
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      const d = await api("/api/sync/campfire", {
+        method: "POST",
+        body: JSON.stringify(startAfter ? { startAfter } : {}),
+      });
+      setResult(d.report);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <h2 className="mb-1 text-sm font-semibold text-white">Campfire sync</h2>
+      <p className="mb-3 text-xs text-slate-500">
+        Pulls contracts and invoices from Campfire. New contracts arrive as drafts for review;
+        approved items are never overwritten - changes to them surface as conflicts. Tranches
+        (license release schedules) stay manual: enter them from the signed order form.
+      </p>
+      {configured === false && (
+        <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          CAMPFIRE_API_KEY is not set. Add it in Vercel → Settings → Environment Variables
+          (never share the key in chat or email), redeploy, and this button goes live.
+        </p>
+      )}
+      <div className="flex flex-wrap items-end gap-3">
+        <Input
+          label="Only contracts starting on/after (optional)"
+          type="date"
+          value={startAfter}
+          onChange={(e) => setStartAfter(e.target.value)}
+        />
+        <Button onClick={sync} disabled={busy || configured === false}>
+          <span className="inline-flex items-center gap-1.5">
+            <RefreshCw size={14} className={busy ? "animate-spin" : ""} />
+            {busy ? "Syncing..." : "Sync from Campfire"}
+          </span>
+        </Button>
+      </div>
+      {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+      {result && (
+        <div className="mt-4 space-y-2 text-sm">
+          <p className="text-slate-300">
+            {result.contractsSeen} contracts seen · <span className="text-emerald-400">{result.contractsCreated} created</span> ·{" "}
+            {result.invoicesSeen} invoices seen · <span className="text-emerald-400">{result.invoicesCreated} created</span>,{" "}
+            {result.invoicesUpdated} updated
+          </p>
+          {result.conflicts.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="mb-1 text-xs font-semibold text-amber-300">
+                {result.conflicts.length} conflicts (nothing changed - resolve manually):
+              </p>
+              <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-slate-400">
+                {result.conflicts.map((c: string, i: number) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const user = useUser();
@@ -148,6 +230,8 @@ export default function SettingsPage() {
           </Button>
         </div>
       </Card>
+
+      <CampfireSync />
 
       <Card className="p-5">
         <h2 className="mb-1 text-sm font-semibold text-white">Accounting policy</h2>

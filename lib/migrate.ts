@@ -113,6 +113,10 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "idx_tranches_contract" ON "tranches" ("contract_id")`,
   `CREATE INDEX IF NOT EXISTS "idx_contracts_customer" ON "contracts" ("customer_id")`,
   `CREATE INDEX IF NOT EXISTS "idx_audit_entity" ON "audit_log" ("entity_id")`,
+  // Campfire sync support
+  `ALTER TABLE "contracts" ADD COLUMN IF NOT EXISTS "campfire_id" text`,
+  `CREATE INDEX IF NOT EXISTS "idx_contracts_campfire" ON "contracts" ("campfire_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_invoices_external" ON "invoices" ("external_ref")`,
 ];
 
 const FOREIGN_KEYS: [string, string][] = [
