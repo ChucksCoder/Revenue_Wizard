@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { invoices, invoiceLabels } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { invoices, invoiceLabels, labels } from "@/lib/schema";
+import { eq, inArray } from "drizzle-orm";
 import { json, err, withUser } from "@/lib/api";
-import { logAudit } from "@/lib/audit";
+import { logAudit, buildChanges } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -37,13 +37,25 @@ export const PATCH = withUser(async (user, req: NextRequest, ctx: Ctx) => {
     updates.taxAmount = String(Math.round(amount * rate * 100) / 100);
   }
 
+  // field-level before/after diff for the audit trail
+  const changes = buildChanges(existing as any, updates);
+
   if ("labelIds" in body) {
-    await db.delete(invoiceLabels).where(eq(invoiceLabels.invoiceId, id));
     const ids: string[] = body.labelIds ?? [];
+    const [oldJoin, allLabels] = await Promise.all([
+      db.select().from(invoiceLabels).where(eq(invoiceLabels.invoiceId, id)),
+      db.select().from(labels),
+    ]);
+    const nameOf = new Map(allLabels.map((l) => [l.id, l.name]));
+    const oldNames = oldJoin.map((x) => nameOf.get(x.labelId)).filter(Boolean).sort().join(", ");
+    const newNames = ids.map((x) => nameOf.get(x)).filter(Boolean).sort().join(", ");
+    await db.delete(invoiceLabels).where(eq(invoiceLabels.invoiceId, id));
     if (ids.length)
       await db
         .insert(invoiceLabels)
         .values(ids.map((labelId) => ({ invoiceId: id, labelId })));
+    if (oldNames !== newNames)
+      changes.labels = { from: oldNames || "(none)", to: newNames || "(none)" };
   }
 
   if (Object.keys(updates).length > 0) {
@@ -56,7 +68,8 @@ export const PATCH = withUser(async (user, req: NextRequest, ctx: Ctx) => {
     }
     await db.update(invoices).set(updates).where(eq(invoices.id, id));
   }
-  await logAudit(user, "invoice", id, "updated", { fields: Object.keys(body) });
+  if (Object.keys(changes).length > 0)
+    await logAudit(user, "invoice", id, "updated", { changes });
   const [row] = await db.select().from(invoices).where(eq(invoices.id, id));
   return json({ invoice: row });
 });

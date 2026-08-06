@@ -229,6 +229,15 @@ export async function runCampfireSync(
       );
       continue;
     }
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (Math.abs(Number(existing.amount) - pre) > 0.01)
+      changes.amount = { from: existing.amount, to: pre };
+    if (Math.abs(Number(existing.taxAmount) - tax) > 0.01)
+      changes.taxAmount = { from: existing.taxAmount, to: tax };
+    if (existing.invoiceDate !== i.invoice_date)
+      changes.invoiceDate = { from: existing.invoiceDate, to: i.invoice_date };
+    if (voided && existing.status !== "void")
+      changes.status = { from: existing.status, to: "void" };
     await db
       .update(invoices)
       .set({
@@ -243,7 +252,7 @@ export async function runCampfireSync(
       })
       .where(eq(invoices.id, existing.id));
     report.invoicesUpdated++;
-    await logAudit(user, "invoice", existing.id, "updated", { source: "campfire-sync" });
+    await logAudit(user, "invoice", existing.id, "updated", { source: "campfire-sync", changes });
   }
 
   await logAudit(user, "settings", "campfire-sync", "updated", report);

@@ -120,13 +120,22 @@ export const GET = withUser(async (user, req: NextRequest) => {
           : r.entityType === "invoice"
             ? invoiceName.get(r.entityId) ?? "(deleted invoice)"
             : r.entityId;
+      const detail = r.detail as any;
+      const detailText =
+        detail?.changes && Object.keys(detail.changes).length > 0
+          ? Object.entries(detail.changes)
+              .map(([k, v]: [string, any]) => `${k}: ${v?.from ?? "—"} → ${v?.to ?? "—"}`)
+              .join("; ") + (detail.source === "campfire-sync" ? " (via Campfire sync)" : "")
+          : detail
+            ? JSON.stringify(detail).slice(0, 500)
+            : "";
       ws.addRow([
         new Date(r.createdAt).toISOString().slice(0, 19).replace("T", " "),
         r.userName ?? "",
         r.action,
         r.entityType,
         name,
-        r.detail ? JSON.stringify(r.detail).slice(0, 500) : "",
+        detailText,
       ]);
     }
     [18, 16, 12, 12, 44, 60].forEach((w, i) => (ws.getColumn(i + 1).width = w));

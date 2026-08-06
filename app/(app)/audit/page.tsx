@@ -156,9 +156,29 @@ export default function AuditPage() {
                       <span className="text-slate-300">{e.entityName}</span>
                     )}
                   </Td>
-                  <Td className="max-w-md truncate text-xs text-slate-600">
-                    {e.detail ? JSON.stringify(e.detail) : ""}
-                  </Td>
+                  <td className="max-w-lg border-b border-slate-800/50 px-3 py-2 text-xs">
+                    {e.detail?.changes && Object.keys(e.detail.changes).length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(e.detail.changes).map(([k, v]: [string, any]) => (
+                          <span key={k} className="inline-flex items-center gap-1 rounded bg-slate-800/80 px-1.5 py-0.5">
+                            <span className="text-slate-400">{k}:</span>
+                            <span className="text-rose-300/80 line-through">{String(v?.from ?? "—")}</span>
+                            <span className="text-slate-600">→</span>
+                            <span className="text-emerald-300">{String(v?.to ?? "—")}</span>
+                          </span>
+                        ))}
+                        {e.detail.source === "campfire-sync" && (
+                          <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-orange-300">via Campfire sync</span>
+                        )}
+                      </div>
+                    ) : e.detail ? (
+                      <span className="block truncate text-slate-600" title={JSON.stringify(e.detail)}>
+                        {JSON.stringify(e.detail)}
+                      </span>
+                    ) : (
+                      ""
+                    )}
+                  </td>
                 </tr>
               ))}
           </tbody>

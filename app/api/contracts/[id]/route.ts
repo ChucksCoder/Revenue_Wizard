@@ -11,7 +11,7 @@ import {
 } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { json, err, withUser } from "@/lib/api";
-import { logAudit } from "@/lib/audit";
+import { logAudit, buildChanges } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -69,13 +69,25 @@ export const PATCH = withUser(async (user, req: NextRequest, ctx: Ctx) => {
     if (k in body) updates[k] = ["tcv", "licensePct"].includes(k) ? String(body[k]) : body[k];
   }
 
+  // field-level before/after diff for the audit trail
+  const changes = buildChanges(existing as any, updates);
+
   if ("labelIds" in body) {
-    await db.delete(contractLabels).where(eq(contractLabels.contractId, id));
     const ids: string[] = body.labelIds ?? [];
+    const [oldJoin, allLabels] = await Promise.all([
+      db.select().from(contractLabels).where(eq(contractLabels.contractId, id)),
+      db.select().from(labels),
+    ]);
+    const nameOf = new Map(allLabels.map((l) => [l.id, l.name]));
+    const oldNames = oldJoin.map((x) => nameOf.get(x.labelId)).filter(Boolean).sort().join(", ");
+    const newNames = ids.map((x) => nameOf.get(x)).filter(Boolean).sort().join(", ");
+    await db.delete(contractLabels).where(eq(contractLabels.contractId, id));
     if (ids.length)
       await db
         .insert(contractLabels)
         .values(ids.map((labelId) => ({ contractId: id, labelId })));
+    if (oldNames !== newNames)
+      changes.labels = { from: oldNames || "(none)", to: newNames || "(none)" };
   }
 
   if (Object.keys(updates).length > 0) {
@@ -91,7 +103,8 @@ export const PATCH = withUser(async (user, req: NextRequest, ctx: Ctx) => {
     }
     await db.update(contracts).set(updates).where(eq(contracts.id, id));
   }
-  await logAudit(user, "contract", id, "updated", { fields: Object.keys(body) });
+  if (Object.keys(changes).length > 0)
+    await logAudit(user, "contract", id, "updated", { changes });
   const [row] = await db.select().from(contracts).where(eq(contracts.id, id));
   return json({ contract: row });
 });
