@@ -239,10 +239,12 @@ export async function runCampfireSync(
     ...(to ? { end_date: to } : {}),
   });
   for (const i of windowed) seen.set(String(i.id), i);
+  // Pull the FULL invoice schedule (past + future-dated) for every tracked
+  // contract seen this run - not just newly created ones. Otherwise invoices
+  // added later in Campfire with dates outside the window never sync.
   for (const c of inWindow) {
     const cfId = String(c.id);
-    const local = byCfId.get(cfId);
-    if (!local || !newLocalIds.includes(local.id)) continue;
+    if (!byCfId.get(cfId)) continue;
     await sleep(250);
     const rows = await cfAll(INVOICES_PATH, { contract: cfId });
     for (const i of rows) seen.set(String(i.id), i);
