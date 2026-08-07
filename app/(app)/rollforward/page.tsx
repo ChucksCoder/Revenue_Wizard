@@ -7,7 +7,7 @@ import { fmtMoney } from "@/lib/format";
 import { monthLabel, monthRange } from "@/lib/engine";
 import { useMonth } from "@/lib/month";
 import MonthPicker from "@/components/MonthPicker";
-import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Maximize2, X } from "lucide-react";
 
 type View = "matrix" | "monthly";
 
@@ -23,6 +23,7 @@ export default function RollforwardPage() {
   const [q, setQ] = useState("");
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [view, setView] = useState<View>("matrix");
+  const [full, setFull] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,6 +71,11 @@ export default function RollforwardPage() {
               <span className="inline-flex items-center gap-1.5"><Download size={14} /> Audit workbook (.xlsx)</span>
             </Button>
           </a>
+          {view === "matrix" && (
+            <Button variant="secondary" onClick={() => setFull(true)}>
+              <span className="inline-flex items-center gap-1.5"><Maximize2 size={14} /> Full screen</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -101,7 +107,13 @@ export default function RollforwardPage() {
       )}
 
       {view === "matrix" ? (
-        <Matrix months={months} byContract={byContract} closeMonth={asOf} />
+        <Matrix
+          months={months}
+          byContract={byContract}
+          closeMonth={asOf}
+          full={full}
+          onCloseFull={() => setFull(false)}
+        />
       ) : (
         <Monthly
           months={months}
@@ -118,11 +130,37 @@ export default function RollforwardPage() {
 
 const STICKY = "sticky left-0 z-10 w-60 min-w-60 max-w-60 border-r border-slate-800 shadow-[10px_0_14px_-10px_rgba(0,0,0,0.9)]";
 
-function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract: any[]; closeMonth: string }) {
+function Matrix({
+  months,
+  byContract,
+  closeMonth,
+  full,
+  onCloseFull,
+}: {
+  months: any[];
+  byContract: any[];
+  closeMonth: string;
+  full: boolean;
+  onCloseFull: () => void;
+}) {
   const mks: string[] = useMemo(() => {
     if (months.length === 0) return [];
     return monthRange(months[0].month, months[months.length - 1].month);
   }, [months]);
+
+  // Full-screen: lock page scroll and close on Escape.
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseFull();
+    };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [full, onCloseFull]);
 
   const cell = (v: number, cls = "text-slate-300", mk?: string) =>
     v === 0 ? (
@@ -133,25 +171,26 @@ function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract:
 
   const rowFor = (c: any, mk: string) => c.rollforward.find((r: any) => r.month === mk);
 
-  return (
-    <Card className="overflow-x-auto">
+  const table = (
       <table className="w-full border-separate border-spacing-0">
         <thead>
           <tr>
-            <th className={`${STICKY} bg-slate-900 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500`}>
+            <th className="sticky left-0 top-0 z-30 w-60 min-w-60 max-w-60 border-b border-r border-slate-800 bg-slate-900 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 shadow-[10px_0_14px_-10px_rgba(0,0,0,0.9)]">
               Contract / Line
             </th>
             {mks.map((mk) => (
               <th
                 key={mk}
-                className={`whitespace-nowrap border-b border-slate-800 px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider ${
-                  mk === closeMonth ? "bg-indigo-500/15 text-indigo-300" : "text-slate-500"
+                className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-800 px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider ${
+                  mk === closeMonth ? "bg-indigo-950 text-indigo-300" : "bg-slate-900 text-slate-500"
                 }`}
               >
                 {monthLabel(mk)}
               </th>
             ))}
-            <Th right>Total / End</Th>
+            <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-800 bg-slate-900 px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Total / End
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -165,12 +204,7 @@ function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract:
           ].map((row, i) => (
             <tr key={row.label} className="bg-slate-900/80 font-semibold">
               <td className={`${STICKY} border-b border-slate-800/60 bg-slate-900 px-3 py-1.5`}>
-                <div className="flex items-baseline justify-between gap-2">
-                  {i === 0 ? (
-                    <span className="text-xs font-bold uppercase tracking-wider text-white">Portfolio</span>
-                  ) : (
-                    <span />
-                  )}
+                <div className="flex items-baseline justify-end gap-2">
                   <span className={`text-[11px] font-medium ${row.cls}`}>{row.label}</span>
                 </div>
               </td>
@@ -203,9 +237,9 @@ function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract:
               { label: "Deferred", get: (r: any) => r.endDeferred, cls: "text-indigo-300", total: lastDR, balance: true },
             ];
             return lines.map((line, li) => (
-              <tr key={`${c.contractId}-${line.label}`} className="group hover:bg-slate-900/40">
+              <tr key={`${c.contractId}-${line.label}`} className="group hover:bg-slate-800/50">
                 <td
-                  className={`${STICKY} bg-slate-950 px-3 py-1.5 ${li === 0 ? "border-t-2 border-t-slate-800" : ""} ${li === 2 ? "border-b border-slate-800/40" : ""}`}
+                  className={`${STICKY} bg-slate-950 px-3 py-1.5 group-hover:bg-slate-900 ${li === 0 ? "border-t-2 border-t-slate-800" : ""} ${li === 2 ? "border-b border-slate-800/40" : ""}`}
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     {li === 0 ? (
@@ -252,8 +286,27 @@ function Matrix({ months, byContract, closeMonth }: { months: any[]; byContract:
           })}
         </tbody>
       </table>
-    </Card>
   );
+
+  if (full)
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col bg-slate-950 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-300">
+            Worksheet <span className="text-slate-600">·</span> close month {monthLabel(closeMonth)}
+          </div>
+          <button
+            onClick={onCloseFull}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800"
+          >
+            <X size={14} /> Exit full screen (Esc)
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-800">{table}</div>
+      </div>
+    );
+
+  return <Card className="max-h-[75vh] overflow-auto">{table}</Card>;
 }
 
 // ------------------------------------------------------------------- Monthly

@@ -13,6 +13,7 @@ import {
   Tag,
   Settings,
   LogOut,
+  PanelLeftClose,
   Sparkles,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
@@ -42,7 +43,7 @@ const NAV: { section: string; items: { href: string; label: string; icon: typeof
   },
 ];
 
-export default function Sidebar({ user }: { user: SessionUser }) {
+export default function Sidebar({ user, onHide }: { user: SessionUser; onHide?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -58,10 +59,19 @@ export default function Sidebar({ user }: { user: SessionUser }) {
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30">
           <Sparkles size={18} className="text-white" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-white">Revenue Hub</div>
           <div className="text-[11px] text-slate-500">Coder Technologies</div>
         </div>
+        {onHide && (
+          <button
+            onClick={onHide}
+            title="Hide sidebar"
+            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-900 hover:text-slate-300"
+          >
+            <PanelLeftClose size={16} />
+          </button>
+        )}
       </div>
       <nav className="mt-2 flex-1 space-y-4 overflow-y-auto px-3">
         {NAV.map(({ section, items }) => (

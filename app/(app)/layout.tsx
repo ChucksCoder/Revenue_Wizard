@@ -1,4 +1,4 @@
-import Sidebar from "@/components/Sidebar";
+import AppShell from "@/components/AppShell";
 import { getSession } from "@/lib/auth";
 import { MonthProvider } from "@/lib/month";
 import { redirect } from "next/navigation";
@@ -8,10 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
   return (
     <MonthProvider>
-      <div className="flex min-h-screen">
-        <Sidebar user={user} />
-        <main className="ml-60 min-w-0 flex-1 p-8">{children}</main>
-      </div>
+      <AppShell user={user}>{children}</AppShell>
     </MonthProvider>
   );
 }
