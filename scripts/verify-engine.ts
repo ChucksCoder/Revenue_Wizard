@@ -132,7 +132,7 @@ const taxContract: EngineContractInput = {
   id: "taxed",
   invoices: [{ id: "t1", invoiceNumber: "INV-T1", date: "2026-02-01", amount: 60000, taxAmount: 5250, status: "issued" }],
 };
-const taxLines = journalEntriesForMonth([taxContract], "2026-02");
+const taxLines = journalEntriesForMonth([taxContract], "2026-02", undefined, ["billing", "recognition"]);
 const ar = taxLines.find((l) => l.account === "1100")!;
 const taxLine = taxLines.find((l) => l.account === "2200")!;
 check("AR gross includes tax", ar.debit, 65250);

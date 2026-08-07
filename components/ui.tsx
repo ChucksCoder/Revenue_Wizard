@@ -226,15 +226,18 @@ export function Td({
   right,
   className = "",
   colSpan,
+  title,
 }: {
   children?: ReactNode;
   right?: boolean;
   className?: string;
   colSpan?: number;
+  title?: string;
 }) {
   return (
     <td
       colSpan={colSpan}
+      title={title}
       className={`whitespace-nowrap border-b border-slate-800/50 px-3 py-2 text-sm ${right ? "text-right tabular" : "text-left"} ${className}`}
     >
       {children}

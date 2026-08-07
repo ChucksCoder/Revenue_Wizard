@@ -11,8 +11,9 @@ function csvEscape(s: string): string {
 }
 
 // GET /api/export/netsuite?month=YYYY-MM
-// NetSuite Journal Entry CSV import: one External ID per entry type so the
-// billing JE and the recognition JE import as separate balanced journals.
+// NetSuite Journal Entry CSV import: revenue recognition ONLY. Invoices are
+// created in NetSuite, which posts AR / deferred / sales tax itself - this
+// export just moves deferred (or contract asset) into revenue.
 export const GET = withUser(async (_user, req: NextRequest) => {
   const month = req.nextUrl.searchParams.get("month");
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return err("month query param required (YYYY-MM)");
@@ -30,11 +31,8 @@ export const GET = withUser(async (_user, req: NextRequest) => {
 
   const rows = [header.join(",")];
   for (const l of lines) {
-    const extId = `REVHUB-${month}-${l.entryType === "billing" ? "BILL" : "REC"}-${l.sourceId.slice(0, 8)}`;
-    const mainMemo =
-      l.entryType === "billing"
-        ? `Billing - ${l.customer} (${month})`
-        : `Revenue recognition - ${l.customer} (${month})`;
+    const extId = `REVHUB-${month}-REC-${l.sourceId.slice(0, 8)}`;
+    const mainMemo = `Revenue recognition - ${l.customer} (${month})`;
     rows.push(
       [
         extId,

@@ -25,8 +25,6 @@ export default function JournalsPage() {
   }, [month]);
 
   const balanced = Math.abs(totals.debit - totals.credit) < 0.005;
-  const billing = lines.filter((l) => l.entryType === "billing");
-  const recognition = lines.filter((l) => l.entryType === "recognition");
 
   return (
     <div className="space-y-5">
@@ -34,7 +32,7 @@ export default function JournalsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-white">Journal Entries</h1>
           <p className="mt-1 text-sm text-slate-500">
-            System-computed JEs for {monthLabel(month)} - billings (AR / deferred / tax) and revenue recognition.
+            Revenue recognition JEs for {monthLabel(month)}: Dr Deferred / Contract Asset, Cr License & Support revenue. Billing (AR, deferred, sales tax) posts from the invoices in NetSuite.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -67,10 +65,7 @@ export default function JournalsPage() {
       {loading ? (
         <div className="py-16 text-center text-slate-500">Computing entries...</div>
       ) : (
-        <>
-          <JeTable title={`Revenue recognition (${recognition.length} lines)`} lines={recognition} />
-          <JeTable title={`Billings (${billing.length} lines)`} lines={billing} />
-        </>
+        <JeTable title={`Revenue recognition (${lines.length} lines)`} lines={lines} />
       )}
     </div>
   );

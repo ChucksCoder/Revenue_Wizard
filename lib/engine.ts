@@ -333,12 +333,20 @@ export function computeContract(c: EngineContractInput): ContractComputation {
 
 // ------------------------------------------------------------ journal entries
 
+// Invoicing lives in NetSuite: the invoice itself posts Dr AR / Cr Deferred /
+// Cr Sales Tax there, so Revenue Hub JEs default to RECOGNITION ONLY
+// (Dr Deferred or Contract Asset / Cr License & Support revenue). The billing
+// math still runs internally - it sequences the DR/CA balances the recognition
+// entries relieve. Pass kinds=["billing","recognition"] to also emit billing
+// lines (used by engine self-tests).
 export function journalEntriesForMonth(
   contracts: EngineContractInput[],
   month: string,
-  accounts: AccountMap = DEFAULT_ACCOUNTS
+  accounts: AccountMap = DEFAULT_ACCOUNTS,
+  kinds: ReadonlyArray<"billing" | "recognition"> = ["recognition"]
 ): JournalLine[] {
   const lines: JournalLine[] = [];
+  const wantBilling = kinds.includes("billing");
 
   for (const c of contracts) {
     const comp = computeContract(c);
@@ -362,6 +370,7 @@ export function journalEntriesForMonth(
       const relieveCA = Math.min(caBal, net);
       caBal -= relieveCA;
       drBal += net - relieveCA;
+      if (!wantBilling) continue; // NetSuite invoices post these entries
       const memo = `Invoice ${inv.invoiceNumber} - ${c.name}`;
       lines.push({
         account: accounts.ar.number, accountName: accounts.ar.name,

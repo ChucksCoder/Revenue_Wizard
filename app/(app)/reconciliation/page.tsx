@@ -64,8 +64,14 @@ export default function ReconciliationPage() {
         }`}
       >
         {checksPass
-          ? `All ${data?.allCount} contracts tie: bridge method equals ledger method as of ${monthLabel(asOf)}.`
-          : `${data?.flaggedCount} of ${data?.allCount} contracts don't tie - invoices don't sum to TCV.`}
+          ? `All ${data?.allCount} contracts tie as of ${monthLabel(asOf)}${
+              (data?.roundingCount ?? 0) > 0
+                ? ` - ${data.roundingCount} within the ±$0.25 rounding tolerance (net ${fmtMoney(
+                    data.roundingNet
+                  )}, Campfire invoice schedules vs TCV).`
+                : ": bridge method equals ledger method."
+            }`
+          : `${data?.flaggedCount} of ${data?.allCount} contracts don't tie beyond rounding - invoices don't sum to TCV.`}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -145,7 +151,17 @@ export default function ReconciliationPage() {
                 </Td>
                 <Td right className="font-medium text-indigo-300">{fmtMoney(r.deferred)}</Td>
                 <Td right className="font-medium text-sky-300">{fmtMoney(r.contractAsset)}</Td>
-                <Td right className={Math.abs(r.check) < 0.01 ? "text-emerald-400" : "text-rose-400"}>
+                <Td
+                  right
+                  title={Math.abs(r.check) >= 0.01 && Math.abs(r.check) <= 0.25 ? "Rounding: invoice schedule vs TCV, within ±$0.25" : undefined}
+                  className={
+                    Math.abs(r.check) < 0.01
+                      ? "text-emerald-400"
+                      : Math.abs(r.check) <= 0.25
+                        ? "text-amber-400"
+                        : "text-rose-400"
+                  }
+                >
                   {Math.abs(r.check) < 0.01 ? "✓" : fmtMoney(r.check)}
                 </Td>
               </tr>

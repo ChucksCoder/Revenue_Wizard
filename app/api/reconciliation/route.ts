@@ -50,11 +50,25 @@ export const GET = withUser(async (_user, req: NextRequest) => {
     );
   filtered.sort((a, b) => b.deferred + b.contractAsset - (a.deferred + a.contractAsset));
 
+  // Penny drift: Campfire rounds each period invoice to cents, so a schedule
+  // can sum to TCV +/- a few pennies while recognition follows TCV exactly.
+  // |check| at or below TOL is classified as rounding (shown amber, not an
+  // exception); anything larger is a real billing-vs-TCV break.
+  const TOL = 0.25;
+  const exceptions = all.filter(
+    (r) => Math.abs(r.check) > TOL || Math.abs(r.unbilled) >= 0.01
+  );
+  const rounding = all.filter(
+    (r) => Math.abs(r.check) >= 0.01 && Math.abs(r.check) <= TOL && Math.abs(r.unbilled) < 0.01
+  );
+
   return json({
     month,
     totals: Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, r2(v)])),
     total: filtered.length,
-    flaggedCount: all.filter((r) => Math.abs(r.check) >= 0.01 || Math.abs(r.unbilled) >= 0.01).length,
+    flaggedCount: exceptions.length,
+    roundingCount: rounding.length,
+    roundingNet: r2(rounding.reduce((a, r) => a + r.check, 0)),
     allCount: all.length,
     rows: filtered.slice(offset, offset + limit),
   });
