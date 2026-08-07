@@ -25,13 +25,12 @@ export const GET = withUser(async (_user, req: NextRequest) => {
         c.customerName.toLowerCase().includes(q) ||
         c.contractName.toLowerCase().includes(q)
     );
-  // biggest balances first so the default page is the most relevant
-  const score = (c: (typeof byContract)[number]) => {
-    const last = c.rollforward[c.rollforward.length - 1];
-    const cur = c.rollforward.find((r) => r.month === new Date().toISOString().slice(0, 7)) ?? last;
-    return (cur?.endDeferred ?? 0) + (cur?.endContractAsset ?? 0);
-  };
-  filtered = [...filtered].sort((a, b) => score(b) - score(a));
+  // chronological: sorted by the month rev rec starts, then by customer name
+  filtered = [...filtered].sort(
+    (a, b) =>
+      a.firstMonth.localeCompare(b.firstMonth) ||
+      a.customerName.localeCompare(b.customerName)
+  );
 
   const page = filtered.slice(offset, offset + limit).map((c) => ({
     contractId: c.contractId,

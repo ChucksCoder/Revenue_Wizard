@@ -97,7 +97,7 @@ export default function RollforwardPage() {
             />
           </form>
           <span className="text-xs text-slate-500">
-            {total} contracts{q ? ` matching "${q}"` : ""} · sorted by balance · page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            {total} contracts{q ? ` matching "${q}"` : ""} · sorted by rev rec start · page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
           </span>
           <div className="flex gap-1">
             <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</Button>
@@ -241,15 +241,37 @@ function Matrix({
                 <td
                   className={`${STICKY} bg-slate-950 px-3 py-1.5 group-hover:bg-slate-900 ${li === 0 ? "border-t-2 border-t-slate-800" : ""} ${li === 2 ? "border-b border-slate-800/40" : ""}`}
                 >
-                  <div className="flex items-baseline justify-between gap-2">
+                  <div className="group/name relative flex items-baseline justify-between gap-2">
                     {li === 0 ? (
-                      <Link
-                        href={`/contracts/${c.contractId}`}
-                        title={c.contractName}
-                        className="truncate text-sm font-semibold text-slate-200 hover:text-indigo-300"
-                      >
-                        {c.customerName}
-                      </Link>
+                      <>
+                        <Link
+                          href={`/contracts/${c.contractId}`}
+                          className="truncate text-sm font-semibold text-slate-200 hover:text-indigo-300"
+                        >
+                          {c.customerName}
+                        </Link>
+                        {/* Sanity-check card: appears after ~0.7s hover on the name */}
+                        <div className="pointer-events-none absolute left-full top-0 z-50 ml-3 w-64 rounded-xl border border-slate-700 bg-slate-900 p-3 opacity-0 shadow-2xl shadow-black/60 transition-opacity delay-700 duration-150 group-hover/name:opacity-100">
+                          <div className="mb-2 text-xs font-semibold text-slate-200">{c.contractName}</div>
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex justify-between gap-3">
+                              <span className="text-slate-500">TCV</span>
+                              <span className="tabular text-slate-200">{fmtMoney(c.licenseTotal + c.supportTotal)}</span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                              <span className="text-slate-500">License (SSP)</span>
+                              <span className="tabular text-violet-300">{fmtMoney(c.licenseTotal)}</span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                              <span className="text-slate-500">Support (SSP)</span>
+                              <span className="tabular text-slate-300">{fmtMoney(c.supportTotal)}</span>
+                            </div>
+                            <div className="mt-1.5 border-t border-slate-800 pt-1.5 text-slate-500">
+                              Rev rec {monthLabel(c.firstMonth)} &rarr; {monthLabel(c.lastMonth)}
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     ) : (
                       <span />
                     )}
