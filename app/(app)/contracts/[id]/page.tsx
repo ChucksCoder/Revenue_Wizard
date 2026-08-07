@@ -243,19 +243,7 @@ function Overview({ contract, computation, onSave }: { contract: any; computatio
         {contract.tranches.length > 0 && <LicenseRelease contract={contract} />}
         <Card className="p-5">
           <h2 className="mb-3 text-sm font-semibold text-white">SSP allocation</h2>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">License ({(num(f.licensePct) * 100).toFixed(0)}%, point-in-time)</span>
-              <span className="tabular text-slate-200">${fmtMoney(lic)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Support ({((1 - num(f.licensePct)) * 100).toFixed(0)}%, ratable)</span>
-              <span className="tabular text-slate-200">${fmtMoney(num(f.tcv) - lic)}</span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${num(f.licensePct) * 100}%` }} />
-            </div>
-          </div>
+          <SspBreakdown contract={contract} licensePct={num(f.licensePct)} tcv={num(f.tcv)} />
         </Card>
         {computation && (
           <Card className="p-5">
@@ -278,6 +266,73 @@ function Overview({ contract, computation, onSave }: { contract: any; computatio
           </Card>
         )}
       </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------- SSP breakdown
+
+function SspBreakdown({
+  contract,
+  licensePct,
+  tcv,
+}: {
+  contract: any;
+  licensePct: number;
+  tcv: number;
+}) {
+  const { month } = useMonth();
+  const tranched = contract.tranches.length > 0;
+  // tranched: allocation comes from the tranches; license splits into
+  // released (tranches whose start month has arrived) vs future releases
+  const base = tranched
+    ? contract.tranches.reduce((a: number, t: any) => a + num(t.amount), 0)
+    : tcv;
+  const licTotal = base * licensePct;
+  const releasedLic = tranched
+    ? contract.tranches
+        .filter((t: any) => t.startDate.slice(0, 7) <= month)
+        .reduce((a: number, t: any) => a + num(t.amount) * licensePct, 0)
+    : licTotal;
+  return (
+    <div className="space-y-2 text-sm">
+      <div className="flex justify-between">
+        <span className="text-slate-500">
+          License ({(licensePct * 100).toFixed(0)}%{tranched ? ", released per tranche" : ", point-in-time"})
+        </span>
+        <span className="tabular text-slate-200">${fmtMoney(licTotal)}</span>
+      </div>
+      {tranched && (
+        <>
+          <div className="flex justify-between pl-4">
+            <span className="text-slate-500">Released through {monthLabel(month)}</span>
+            <span className="tabular text-violet-300">${fmtMoney(releasedLic)}</span>
+          </div>
+          <div className="flex justify-between pl-4">
+            <span className="text-slate-500">Future tranche releases</span>
+            <span className="tabular text-amber-300/90">${fmtMoney(licTotal - releasedLic)}</span>
+          </div>
+        </>
+      )}
+      <div className="flex justify-between">
+        <span className="text-slate-500">Support ({((1 - licensePct) * 100).toFixed(0)}%, ratable)</span>
+        <span className="tabular text-slate-200">${fmtMoney(base - licTotal)}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+        {tranched ? (
+          <div className="flex h-full">
+            <div className="h-full bg-violet-500" style={{ width: `${(releasedLic / base) * 100}%` }} />
+            <div className="h-full bg-amber-500/50" style={{ width: `${((licTotal - releasedLic) / base) * 100}%` }} />
+          </div>
+        ) : (
+          <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${licensePct * 100}%` }} />
+        )}
+      </div>
+      {tranched && (
+        <p className="text-[11px] text-slate-600">
+          Only released license has hit the P&L - see the release schedule for tranche dates.
+        </p>
+      )}
     </div>
   );
 }
