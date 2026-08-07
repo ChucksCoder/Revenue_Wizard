@@ -22,7 +22,7 @@ import { useMonth } from "@/lib/month";
 import { fmtMoney, fmtDate, num } from "@/lib/format";
 import { monthLabel } from "@/lib/engine";
 import { campfireContractUrl, campfireInvoiceUrl } from "@/lib/links";
-import { ArrowLeft, Plus, Trash2, Pencil, Wand2, ExternalLink, Flame, Cloud } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, Wand2, ExternalLink, Flame, Cloud, FileText } from "lucide-react";
 
 const TABS = ["Overview", "Tranches", "Invoices", "Schedule", "Activity"] as const;
 
@@ -245,6 +245,29 @@ function Overview({ contract, computation, onSave }: { contract: any; computatio
           <h2 className="mb-3 text-sm font-semibold text-white">SSP allocation</h2>
           <SspBreakdown contract={contract} licensePct={num(f.licensePct)} tcv={num(f.tcv)} />
         </Card>
+        {Array.isArray(contract.attachments) && contract.attachments.length > 0 && (
+          <Card className="p-5">
+            <h2 className="mb-1 text-sm font-semibold text-white">Order forms & attachments</h2>
+            <p className="mb-3 text-xs text-slate-500">
+              Stored in Campfire - streamed here on demand, never copied.
+            </p>
+            <div className="space-y-1.5">
+              {contract.attachments.map((a: any) => (
+                <a
+                  key={a.id}
+                  href={`/api/files/campfire/${a.id}?name=${encodeURIComponent(a.name)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-2 text-sm text-slate-300 hover:border-indigo-500/50 hover:text-white"
+                >
+                  <FileText size={14} className="shrink-0 text-slate-500" />
+                  <span className="truncate">{a.name}</span>
+                  <ExternalLink size={11} className="ml-auto shrink-0 text-slate-600" />
+                </a>
+              ))}
+            </div>
+          </Card>
+        )}
         {computation && (
           <Card className="p-5">
             <h2 className="mb-3 text-sm font-semibold text-white">Current position</h2>

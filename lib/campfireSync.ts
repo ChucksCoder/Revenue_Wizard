@@ -84,6 +84,13 @@ function extractCustomField(fields: any[] | null | undefined, keyMatch: string):
   return null;
 }
 
+// metadata only: [{id, name}] - the files themselves stay in Campfire
+function attachmentMeta(c: any): { id: number; name: string }[] {
+  return (c.attachments ?? [])
+    .filter((a: any) => a && !a.is_deleted && a.id && a.name)
+    .map((a: any) => ({ id: a.id, name: String(a.name) }));
+}
+
 function invoiceAmounts(i: any) {
   const lines: any[] = i.lines ?? [];
   const pre = lines.length
@@ -123,7 +130,7 @@ export async function runCampfireSync(
   };
 
   const localContracts = await db
-    .select({ id: contracts.id, campfireId: contracts.campfireId, tcv: contracts.tcv, name: contracts.name, crmLink: contracts.crmLink })
+    .select({ id: contracts.id, campfireId: contracts.campfireId, tcv: contracts.tcv, name: contracts.name, crmLink: contracts.crmLink, attachments: contracts.attachments })
     .from(contracts)
     .where(isNotNull(contracts.campfireId));
   const byCfId = new Map(localContracts.map((c) => [c.campfireId!, c]));
@@ -185,9 +192,14 @@ export async function runCampfireSync(
         report.conflicts.push(
           `Contract "${existing.name}": Campfire TCV ${cfTcv.toFixed(2)} vs app ${Number(existing.tcv).toFixed(2)} - not changed, review manually`
         );
-      // backfill the Salesforce link if we don't have it (metadata, not accounting data)
-      if (!existing.crmLink && c.crm_link)
-        await db.update(contracts).set({ crmLink: c.crm_link }).where(eq(contracts.id, existing.id));
+      // refresh metadata (not accounting data): Salesforce link + attachments
+      const meta: Record<string, unknown> = {};
+      if (!existing.crmLink && c.crm_link) meta.crmLink = c.crm_link;
+      const att = attachmentMeta(c);
+      if (JSON.stringify(att) !== JSON.stringify(existing.attachments ?? []))
+        meta.attachments = att;
+      if (Object.keys(meta).length > 0)
+        await db.update(contracts).set(meta).where(eq(contracts.id, existing.id));
       continue;
     }
     let customerId = custByName.get(c.client_name);
@@ -210,11 +222,12 @@ export async function runCampfireSync(
         dayCount: "exclusive",
         campfireId: cfId,
         crmLink: c.crm_link || null,
+        attachments: attachmentMeta(c),
         notes: `Synced from Campfire ${new Date().toISOString().slice(0, 10)} (${c.client_campfire_id ?? ""}, status ${c.status}). Review vs signed contract; add tranches if licenses release over time.`,
         preparedById: user?.id ?? null,
       })
       .returning();
-    byCfId.set(cfId, { id: row.id, campfireId: cfId, tcv: row.tcv, name: row.name, crmLink: row.crmLink });
+    byCfId.set(cfId, { id: row.id, campfireId: cfId, tcv: row.tcv, name: row.name, crmLink: row.crmLink, attachments: row.attachments });
     newLocalIds.push(row.id);
     report.contractsCreated++;
     await logAudit(user, "contract", row.id, "created", { source: "campfire-sync", cfId });

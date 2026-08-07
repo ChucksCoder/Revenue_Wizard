@@ -62,6 +62,8 @@ export const contracts = pgTable("contracts", {
     .default("active"),
   campfireId: text("campfire_id"), // Campfire contract id for sync matching
   crmLink: text("crm_link"), // Salesforce opportunity URL (from Campfire)
+  // Campfire attachment metadata only: [{id, name}] - files stay in Campfire
+  attachments: jsonb("attachments"),
   reviewStatus: text("review_status", {
     enum: ["draft", "in_review", "approved"],
   })
