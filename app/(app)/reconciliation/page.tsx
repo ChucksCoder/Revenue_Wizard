@@ -146,7 +146,11 @@ export default function ReconciliationPage() {
                 <Td right className="text-slate-300">({fmtMoney(r.cumSup)})</Td>
                 <Td right className="text-slate-200">{fmtMoney(r.unearned)}</Td>
                 <Td right className="text-amber-300">({fmtMoney(r.futureBill)})</Td>
-                <Td right className={r.unbilled ? "text-rose-400" : "text-slate-700"}>
+                <Td
+                  right
+                  title={r.unbilled && Math.abs(r.unbilled) <= 0.25 ? "Rounding: invoice schedule vs TCV, within ±$0.25" : undefined}
+                  className={!r.unbilled ? "text-slate-700" : Math.abs(r.unbilled) <= 0.25 ? "text-amber-400" : "text-rose-400"}
+                >
                   {r.unbilled ? `(${fmtMoney(r.unbilled)})` : "-"}
                 </Td>
                 <Td right className="font-medium text-indigo-300">{fmtMoney(r.deferred)}</Td>
